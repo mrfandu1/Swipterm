@@ -1,12 +1,7 @@
 import SwiftUI
 
 struct GhosttyConfigurationView: View {
-    @AppStorage(Preferences.lightTheme) private var lightTheme: String
-    @AppStorage(Preferences.darkTheme) private var darkTheme: String
-    @AppStorage(Preferences.fontFollowTheme) private var fontFollowTheme: Bool
-    @AppStorage(Preferences.fontFamily) private var fontFamily: String
-    @AppStorage(Preferences.fontSize) private var fontSize: Double
-    @AppStorage(Preferences.alwaysShowSymbolBar) private var alwaysShowSymbolBar: Bool
+    @Bindable private var settings = AppSettings.shared
     @State private var lightPickerTheme: String?
     @State private var darkPickerTheme: String?
 
@@ -15,35 +10,35 @@ struct GhosttyConfigurationView: View {
             schemeSection(
                 "Light Configuration",
                 scheme: .light,
-                theme: $lightTheme,
+                theme: $settings.lightTheme,
                 pickerTheme: $lightPickerTheme,
-                defaultTheme: Preferences.lightTheme.defaultValue
+                defaultTheme: AppSettings.defaultLightTheme
             )
             schemeSection(
                 "Dark Configuration",
                 scheme: .dark,
-                theme: $darkTheme,
+                theme: $settings.darkTheme,
                 pickerTheme: $darkPickerTheme,
-                defaultTheme: Preferences.darkTheme.defaultValue
+                defaultTheme: AppSettings.defaultDarkTheme
             )
             Section("Font Configuration") {
-                Toggle("Follow Theme", isOn: $fontFollowTheme)
-                if !fontFollowTheme {
+                Toggle("Follow Theme", isOn: $settings.fontFollowTheme)
+                if !settings.fontFollowTheme {
                     NavigationLink {
-                        FontPickerView(selection: $fontFamily)
+                        FontPickerView(selection: $settings.fontFamily)
                     } label: {
-                        LabeledContent("Font", value: fontFamily.isEmpty ? String(localized: "Follow Theme") : fontFamily)
+                        LabeledContent("Font", value: settings.fontFamily.isEmpty ? String(localized: "Follow Theme") : settings.fontFamily)
                     }
-                    Stepper(value: $fontSize, in: 8 ... 32, step: 1) {
+                    Stepper(value: $settings.fontSize, in: 8 ... 32, step: 1) {
                         LabeledContent("Size") {
-                            Text(verbatim: "\(Int(fontSize))")
+                            Text(verbatim: "\(Int(settings.fontSize))")
                                 .monospacedDigit()
                         }
                     }
                 }
             }
             Section {
-                Toggle("Always Show Symbol Bar", isOn: $alwaysShowSymbolBar)
+                Toggle("Always Show Symbol Bar", isOn: $settings.alwaysShowSymbolBar)
             } header: {
                 Text("Keyboard")
             } footer: {

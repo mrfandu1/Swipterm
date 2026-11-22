@@ -10,6 +10,7 @@
 		5D0000000000000000000201 /* SwiptermKit in Frameworks */ = {isa = PBXBuildFile; productRef = 5D0000000000000000000A05 /* SwiptermKit */; };
 		5D0000000000000000000202 /* GhosttyTerminal in Frameworks */ = {isa = PBXBuildFile; productRef = 5D0000000000000000000A02 /* GhosttyTerminal */; };
 		5D0000000000000000000203 /* GhosttyTheme in Frameworks */ = {isa = PBXBuildFile; productRef = 5D0000000000000000000A03 /* GhosttyTheme */; };
+		5D0000000000000000000204 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 5D0000000000000000000A07 /* GRDB */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -32,6 +33,7 @@
 				5D0000000000000000000201 /* SwiptermKit in Frameworks */,
 				5D0000000000000000000202 /* GhosttyTerminal in Frameworks */,
 				5D0000000000000000000203 /* GhosttyTheme in Frameworks */,
+				5D0000000000000000000204 /* GRDB in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -77,6 +79,7 @@
 				5D0000000000000000000A02 /* GhosttyTerminal */,
 				5D0000000000000000000A03 /* GhosttyTheme */,
 				5D0000000000000000000A05 /* SwiptermKit */,
+				5D0000000000000000000A07 /* GRDB */,
 			);
 			productName = Swipterm;
 			productReference = 5D0000000000000000000101 /* Swipterm.app */;
@@ -113,6 +116,7 @@
 			packageReferences = (
 				5D0000000000000000000A01 /* XCRemoteSwiftPackageReference "libghostty-spm" */,
 				5D0000000000000000000A04 /* XCLocalSwiftPackageReference "../SwiptermKit" */,
+				5D0000000000000000000A06 /* XCRemoteSwiftPackageReference "GRDB" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 5D0000000000000000000013 /* Products */;
@@ -381,6 +385,14 @@
 				minimumVersion = 2.2.2026111701;
 			};
 		};
+		5D0000000000000000000A06 /* XCRemoteSwiftPackageReference "GRDB" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/groue/GRDB.swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 7.11.1;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -398,6 +410,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 5D0000000000000000000A04 /* XCLocalSwiftPackageReference "../SwiptermKit" */;
 			productName = SwiptermKit;
+		};
+		5D0000000000000000000A07 /* GRDB */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5D0000000000000000000A06 /* XCRemoteSwiftPackageReference "GRDB" */;
+			productName = GRDB;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

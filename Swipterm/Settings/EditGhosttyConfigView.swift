@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 
 struct EditGhosttyConfigView: View {
     private let scheme: ThemePickerView.Scheme
-    private let preference: Preference<String>
+    private let configuration: ReferenceWritableKeyPath<AppSettings, String>
 
     @State private var content: String
     @State private var showFileImporter = false
@@ -11,8 +11,8 @@ struct EditGhosttyConfigView: View {
 
     init(scheme: ThemePickerView.Scheme) {
         self.scheme = scheme
-        preference = scheme == .dark ? Preferences.darkConfig : Preferences.lightConfig
-        _content = State(initialValue: preference.value)
+        configuration = scheme == .dark ? \.darkConfig : \.lightConfig
+        _content = State(initialValue: AppSettings.shared[keyPath: configuration])
     }
 
     var body: some View {
@@ -23,7 +23,7 @@ struct EditGhosttyConfigView: View {
             .task(id: content) {
                 try? await Task.sleep(for: .milliseconds(300))
                 guard !Task.isCancelled else { return }
-                preference.value = content
+                AppSettings.shared[keyPath: configuration] = content
             }
             .navigationTitle(scheme == .dark ? "Dark Custom Configuration" : "Light Custom Configuration")
             .navigationBarTitleDisplayMode(.inline)
@@ -60,7 +60,7 @@ struct EditGhosttyConfigView: View {
                 Text(importError ?? "")
             }
             .onDisappear {
-                preference.value = content
+                AppSettings.shared[keyPath: configuration] = content
             }
     }
 }

@@ -9,15 +9,22 @@ struct SetupView: View {
         case archiveURL
     }
 
+    private enum Field {
+        case name
+        case archiveURL
+        case username
+        case password
+    }
+
     private let catalog = LinuxDistributionCatalogStore.shared
     private let system = LinuxSystem.shared
 
-    @State private var source: Source = .distribution(.ubuntu)
-    @State private var containerName = LinuxDistribution.ubuntu.defaultContainerName
-    @State private var lastAutoContainerName = LinuxDistribution.ubuntu.defaultContainerName
+    @State private var source: Source = .distribution(.alpine)
+    @State private var containerName = LinuxDistribution.alpine.defaultContainerName
+    @State private var lastAutoContainerName = LinuxDistribution.alpine.defaultContainerName
     @State private var selectedReleaseID: String?
     @State private var initMode: ContainerInitMode = .managed
-    @AppStorage(Preferences.distributionMirror) private var mirrorID: String
+    @State private var mirrorID = ""
     @State private var customFileURL: URL?
     @State private var customRemoteURLText = ""
     @State private var showFileImporter = false
@@ -27,184 +34,188 @@ struct SetupView: View {
     @State private var password = ""
     @State private var localHostName = LocalHostName()
     @State private var errorMessage: String?
+    @FocusState private var focusedField: Field?
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    LabeledContent("Name") {
-                        TextField("Name", text: $containerName, prompt: Text(verbatim: "linux"))
+        Form {
+            Section {
+                LabeledContent("Name") {
+                    TextField("Name", text: $containerName, prompt: Text(verbatim: "linux"))
+                        .focused($focusedField, equals: .name)
+                        .labelsHidden()
+                        .multilineTextAlignment(.trailing)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                }
+
+                Picker("Source", selection: clearingFocus($source)) {
+                    ForEach(LinuxDistribution.allCases) { distribution in
+                        Text(verbatim: distribution.displayName)
+                            .tag(Source.distribution(distribution))
+                    }
+                    Section {
+                        Text("Local Archive")
+                            .tag(Source.localArchive)
+                        Text("Archive URL")
+                            .tag(Source.archiveURL)
+                    }
+                }
+
+                switch source {
+                case let .distribution(distribution):
+                    SetupReleasePicker(
+                        selectedReleaseID: clearingFocus($selectedReleaseID),
+                        loadState: catalog.loadState,
+                        releases: catalog.releases(for: distribution),
+                        onRetryCatalog: {
+                            Task { await catalog.refresh(mirror: selectedMirror) }
+                        }
+                    )
+                case .localArchive:
+                    Button {
+                        focusedField = nil
+                        showFileImporter = true
+                    } label: {
+                        LabeledContent("Archive") {
+                            Text(customFileURL?.lastPathComponent ?? String(localized: "Choose File…"))
+                                .foregroundStyle(customFileURL == nil ? .secondary : .primary)
+                                .lineLimit(1)
+                        }
+                    }
+                    .foregroundStyle(.primary)
+                case .archiveURL:
+                    TextField("Archive URL", text: $customRemoteURLText, prompt: Text(verbatim: "https://example.com/rootfs.tar.xz"))
+                        .focused($focusedField, equals: .archiveURL)
+                        .keyboardType(.URL)
+                        .textContentType(.URL)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                }
+            } footer: {
+                if case .distribution = source, case let .failed(message) = catalog.loadState {
+                    Text(message)
+                        .foregroundStyle(.red)
+                }
+            }
+
+            Section("Configuration") {
+                if let distribution = selectedDistribution {
+                    SetupMirrorPicker(distribution: distribution, mirrorID: clearingFocus($mirrorID))
+                }
+                StartupModePicker(selection: Binding {
+                    effectiveInitMode
+                } set: { newValue in
+                    focusedField = nil
+                    initMode = newValue
+                }, nativeInitSystem: nativeInitSystem)
+                    .disabled(requiresSystemInit)
+            }
+
+            Section {
+                Toggle("Don’t Use Separate User", isOn: clearingFocus($usesRootUser))
+                if !usesRootUser {
+                    LabeledContent("Username") {
+                        TextField("Username", text: $username, prompt: Text(verbatim: Self.fallbackUsername))
+                            .focused($focusedField, equals: .username)
                             .labelsHidden()
                             .multilineTextAlignment(.trailing)
                             .autocorrectionDisabled()
                             .textInputAutocapitalization(.never)
+                            .textContentType(.username)
                     }
-
-                    Picker("Source", selection: $source) {
-                        ForEach(LinuxDistribution.allCases) { distribution in
-                            Text(verbatim: distribution.displayName)
-                                .tag(Source.distribution(distribution))
-                        }
-                        Section {
-                            Text("Local Archive")
-                                .tag(Source.localArchive)
-                            Text("Archive URL")
-                                .tag(Source.archiveURL)
-                        }
-                    }
-
-                    switch source {
-                    case let .distribution(distribution):
-                        SetupReleasePicker(
-                            selectedReleaseID: $selectedReleaseID,
-                            loadState: catalog.loadState,
-                            releases: catalog.releases(for: distribution),
-                            onRetryCatalog: {
-                                Task { await catalog.refresh(mirror: selectedMirror) }
-                            }
-                        )
-                    case .localArchive:
-                        Button {
-                            showFileImporter = true
-                        } label: {
-                            LabeledContent("Archive") {
-                                Text(customFileURL?.lastPathComponent ?? String(localized: "Choose File…"))
-                                    .foregroundStyle(customFileURL == nil ? .secondary : .primary)
-                                    .lineLimit(1)
-                            }
-                        }
-                        .foregroundStyle(.primary)
-                    case .archiveURL:
-                        TextField("Archive URL", text: $customRemoteURLText, prompt: Text(verbatim: "https://example.com/rootfs.tar.xz"))
-                            .keyboardType(.URL)
-                            .textContentType(.URL)
-                            .autocorrectionDisabled()
-                            .textInputAutocapitalization(.never)
-                    }
-                } footer: {
-                    if case .distribution = source, case let .failed(message) = catalog.loadState {
-                        Text(message)
-                            .foregroundStyle(.red)
+                    LabeledContent("Password") {
+                        SecureField("Password", text: $password, prompt: Text("Optional"))
+                            .focused($focusedField, equals: .password)
+                            .labelsHidden()
+                            .multilineTextAlignment(.trailing)
+                            .textContentType(.newPassword)
                     }
                 }
-
-                Section("Configuration") {
-                    if let distribution = selectedDistribution {
-                        SetupMirrorPicker(distribution: distribution, mirrorID: $mirrorID)
-                    }
-                    StartupModePicker(selection: Binding {
-                        effectiveInitMode
-                    } set: { newValue in
-                        initMode = newValue
-                    }, nativeInitSystem: nativeInitSystem)
-                        .disabled(requiresSystemInit)
-                }
-
-                Section {
-                    Toggle("Don’t Use Separate User", isOn: $usesRootUser)
-                    if !usesRootUser {
-                        LabeledContent("Username") {
-                            TextField("Username", text: $username, prompt: Text(verbatim: Self.fallbackUsername))
-                                .labelsHidden()
-                                .multilineTextAlignment(.trailing)
-                                .autocorrectionDisabled()
-                                .textInputAutocapitalization(.never)
-                                .textContentType(.username)
-                        }
-                        LabeledContent("Password") {
-                            SecureField("Password", text: $password, prompt: Text("Optional"))
-                                .labelsHidden()
-                                .multilineTextAlignment(.trailing)
-                                .textContentType(.newPassword)
-                        }
-                    }
-                } header: {
-                    Text("User")
-                } footer: {
-                    if !usesRootUser, let problem = usernameProblem {
-                        Text(problem)
-                            .foregroundStyle(.red)
-                    }
-                }
-
-                Section {
-                    Button {
-                        startInstall()
-                    } label: {
-                        Text("Create Container")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    .disabled(!canInstall)
-                    .listRowInsets(EdgeInsets())
-                    .listRowBackground(Color.clear)
+            } header: {
+                Text("User")
+            } footer: {
+                if !usesRootUser, let problem = usernameProblem {
+                    Text(problem)
+                        .foregroundStyle(.red)
                 }
             }
-            .navigationTitle("Initialize")
-            .navigationBarTitleDisplayMode(.large)
-            .fileImporter(
-                isPresented: $showFileImporter,
-                allowedContentTypes: Self.supportedArchiveTypes,
-                allowsMultipleSelection: false
-            ) { result in
-                do {
-                    guard let url = try result.get().first else { return }
-                    customFileURL = url
-                    applyAutoContainerName(Self.suggestedContainerName(fromArchive: url.lastPathComponent))
-                } catch {
-                    errorMessage = error.localizedDescription
+
+            Section {
+                Button {
+                    startInstall()
+                } label: {
+                    Text("Create Container")
+                        .frame(maxWidth: .infinity)
                 }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .disabled(!canInstall)
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
             }
-            .alert("Cannot Start Installation", isPresented: Binding {
-                errorMessage != nil
-            } set: { presented in
-                if !presented {
-                    errorMessage = nil
-                }
-            }) {} message: {
-                Text(errorMessage ?? "")
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .fileImporter(
+            isPresented: $showFileImporter,
+            allowedContentTypes: Self.supportedArchiveTypes,
+            allowsMultipleSelection: false
+        ) { result in
+            do {
+                guard let url = try result.get().first else { return }
+                customFileURL = url
+                applyAutoContainerName(Self.suggestedContainerName(fromArchive: url.lastPathComponent))
+            } catch {
+                errorMessage = error.localizedDescription
             }
-            .task {
-                await catalog.loadIfNeeded(mirror: selectedMirror)
+        }
+        .alert("Cannot Start Installation", isPresented: Binding {
+            errorMessage != nil
+        } set: { presented in
+            if !presented {
+                errorMessage = nil
+            }
+        }) {} message: {
+            Text(errorMessage ?? "")
+        }
+        .task {
+            await catalog.loadIfNeeded(mirror: selectedMirror)
+            syncSelectedRelease()
+        }
+        .onAppear {
+            applyAutoUsername(Self.suggestedUsername(fromHostName: localHostName.name))
+            localHostName.start()
+        }
+        .onDisappear {
+            localHostName.stop()
+        }
+        .onChange(of: localHostName.name) { _, name in
+            applyAutoUsername(Self.suggestedUsername(fromHostName: name))
+        }
+        .onChange(of: source) { _, newSource in
+            switch newSource {
+            case let .distribution(distribution):
+                applyAutoContainerName(distribution.defaultContainerName)
                 syncSelectedRelease()
-            }
-            .onAppear {
-                applyAutoUsername(Self.suggestedUsername(fromHostName: localHostName.name))
-                localHostName.start()
-            }
-            .onDisappear {
-                localHostName.stop()
-            }
-            .onChange(of: localHostName.name) { _, name in
-                applyAutoUsername(Self.suggestedUsername(fromHostName: name))
-            }
-            .onChange(of: source) { _, newSource in
-                switch newSource {
-                case let .distribution(distribution):
-                    applyAutoContainerName(distribution.defaultContainerName)
-                    syncSelectedRelease()
-                case .localArchive:
-                    if let customFileURL {
-                        applyAutoContainerName(Self.suggestedContainerName(fromArchive: customFileURL.lastPathComponent))
-                    }
-                case .archiveURL:
-                    if let url = remoteArchiveURL {
-                        applyAutoContainerName(Self.suggestedContainerName(fromArchive: url.lastPathComponent))
-                    }
+            case .localArchive:
+                if let customFileURL {
+                    applyAutoContainerName(Self.suggestedContainerName(fromArchive: customFileURL.lastPathComponent))
                 }
-            }
-            .onChange(of: customRemoteURLText) {
+            case .archiveURL:
                 if let url = remoteArchiveURL {
                     applyAutoContainerName(Self.suggestedContainerName(fromArchive: url.lastPathComponent))
                 }
             }
-            .onChange(of: catalog.loadState) {
-                syncSelectedRelease()
+        }
+        .onChange(of: customRemoteURLText) {
+            if let url = remoteArchiveURL {
+                applyAutoContainerName(Self.suggestedContainerName(fromArchive: url.lastPathComponent))
             }
-            .onChange(of: mirrorID) {
-                Task { await catalog.refresh(mirror: selectedMirror) }
-            }
+        }
+        .onChange(of: catalog.loadState) {
+            syncSelectedRelease()
+        }
+        .onChange(of: mirrorID) {
+            Task { await catalog.refresh(mirror: selectedMirror) }
         }
     }
 
@@ -269,6 +280,15 @@ struct SetupView: View {
         }
     }
 
+    private func clearingFocus<Value>(_ binding: Binding<Value>) -> Binding<Value> {
+        Binding {
+            binding.wrappedValue
+        } set: { newValue in
+            focusedField = nil
+            binding.wrappedValue = newValue
+        }
+    }
+
     private func applyAutoContainerName(_ suggested: String) {
         let trimmed = containerName.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty || containerName == lastAutoContainerName {
@@ -293,6 +313,7 @@ struct SetupView: View {
     }
 
     private func startInstall() {
+        focusedField = nil
         let installSource: LinuxSystem.InstallRequest.Source
         switch source {
         case .distribution:
@@ -458,31 +479,28 @@ struct SetupProgressView: View {
     let onCancel: (() -> Void)?
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 12) {
-                ProgressView()
-                    .controlSize(.large)
+        VStack(spacing: 12) {
+            ProgressView()
+                .controlSize(.large)
 
-                Text(progress.stageDescription)
-                    .font(.subheadline)
+            Text(progress.stageDescription)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            if let detail = progress.byteDetail {
+                Text(detail)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
-
-                if let detail = progress.byteDetail {
-                    Text(detail)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .monospacedDigit()
-                }
+                    .monospacedDigit()
             }
-            .padding(32)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(uiColor: .systemGroupedBackground))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                if let onCancel, progress.canCancel {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel", role: .cancel, action: onCancel)
-                    }
+        }
+        .padding(32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(uiColor: .systemGroupedBackground))
+        .toolbar {
+            if let onCancel, progress.canCancel {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", role: .cancel, action: onCancel)
                 }
             }
         }

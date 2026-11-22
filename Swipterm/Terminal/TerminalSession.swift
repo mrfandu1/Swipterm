@@ -77,7 +77,7 @@ final class TerminalSession: Identifiable {
         )
         state.configuration = TerminalSurfaceOptions(backend: .inMemory(session))
         extras.state = state
-        extras.alwaysShowsSymbolBar = Preferences.alwaysShowSymbolBar.value
+        extras.alwaysShowsSymbolBar = AppSettings.shared.alwaysShowSymbolBar
 
         let view = TerminalSurfaceView.SurfaceView(frame: .zero)
         view.controller = state.controller
@@ -93,9 +93,8 @@ final class TerminalSession: Identifiable {
                 self?.backgroundColor = color
             }
             .store(in: &cancellables)
-        NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.applyPreferences() }
+        NotificationCenter.default.publisher(for: AppSettings.terminalAppearanceDidChange)
+            .sink { [weak self] _ in self?.applySettings() }
             .store(in: &cancellables)
     }
 
@@ -220,10 +219,10 @@ final class TerminalSession: Identifiable {
         relay.abort()?.close()
     }
 
-    private func applyPreferences() {
+    private func applySettings() {
         state.controller.setTheme(TerminalAppearance.theme())
         state.controller.setTerminalConfiguration(TerminalAppearance.fontConfiguration())
-        extras.alwaysShowsSymbolBar = Preferences.alwaysShowSymbolBar.value
+        extras.alwaysShowsSymbolBar = AppSettings.shared.alwaysShowSymbolBar
     }
 
     private func postSystemNotification(title: String, body: String) {
@@ -246,15 +245,16 @@ final class TerminalSession: Identifiable {
 
 enum TerminalAppearance {
     static func theme() -> TerminalTheme {
-        TerminalTheme(
+        let settings = AppSettings.shared
+        return TerminalTheme(
             light: configuration(
-                themeName: Preferences.lightTheme.value,
-                customText: Preferences.lightConfig.value,
+                themeName: settings.lightTheme,
+                customText: settings.lightConfig,
                 fallback: .alabaster
             ),
             dark: configuration(
-                themeName: Preferences.darkTheme.value,
-                customText: Preferences.darkConfig.value,
+                themeName: settings.darkTheme,
+                customText: settings.darkConfig,
                 fallback: .afterglow
             )
         )
@@ -281,8 +281,9 @@ enum TerminalAppearance {
     }
 
     static func fontConfiguration() -> TerminalConfiguration {
-        let size = Float(Preferences.fontSize.value)
-        let family = Preferences.fontFollowTheme.value ? "" : Preferences.fontFamily.value
+        let settings = AppSettings.shared
+        let size = Float(settings.fontSize)
+        let family = settings.fontFollowTheme ? "" : settings.fontFamily
         return TerminalConfiguration { builder in
             if !family.isEmpty {
                 builder.withFontFamily(family)

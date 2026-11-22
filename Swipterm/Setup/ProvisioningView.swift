@@ -13,7 +13,7 @@ struct ProvisioningView: View {
     var body: some View {
         ZStack {
             backgroundColor
-                .ignoresSafeArea()
+                .ignoresSafeArea(edges: [.horizontal, .bottom])
             TerminalSurfaceView(
                 surfaceView: terminal.surfaceView,
                 state: terminal.state,
@@ -26,8 +26,20 @@ struct ProvisioningView: View {
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            statusBar
-                .environment(\.colorScheme, overlayColorScheme)
+            if let failure = provisioning.failure {
+                failureCard(failure)
+                    .environment(\.colorScheme, overlayColorScheme)
+            }
+        }
+        .toolbarBackground(.visible, for: .navigationBar)
+        .toolbar {
+            if provisioning.failure == nil {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", role: .cancel) {
+                        system.reset()
+                    }
+                }
+            }
         }
         .onAppear {
             terminal.attach()
@@ -37,43 +49,32 @@ struct ProvisioningView: View {
         }
     }
 
-    private var statusBar: some View {
-        Group {
-            if let failure = provisioning.failure {
-                VStack(alignment: .leading, spacing: 12) {
-                    Label {
-                        Text(failure)
-                            .textSelection(.enabled)
-                    } icon: {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.red)
-                    }
-                    .font(.callout)
-                    ViewThatFits(in: .horizontal) {
-                        HStack(spacing: 12) {
-                            backButton
-                            Spacer(minLength: 0)
-                            copyButton
-                            retryButton
-                        }
-                        VStack(spacing: 8) {
-                            retryButton
-                                .frame(maxWidth: .infinity)
-                            HStack(spacing: 8) {
-                                copyButton
-                                    .frame(maxWidth: .infinity)
-                                backButton
-                                    .frame(maxWidth: .infinity)
-                            }
-                        }
-                    }
-                }
-            } else {
-                HStack(spacing: 10) {
-                    ProgressView()
-                    Text("Initializing the container…")
-                        .font(.callout)
+    private func failureCard(_ failure: String) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label {
+                Text(failure)
+                    .textSelection(.enabled)
+            } icon: {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.red)
+            }
+            .font(.callout)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 12) {
+                    backButton
                     Spacer(minLength: 0)
+                    copyButton
+                    retryButton
+                }
+                VStack(spacing: 8) {
+                    retryButton
+                        .frame(maxWidth: .infinity)
+                    HStack(spacing: 8) {
+                        copyButton
+                            .frame(maxWidth: .infinity)
+                        backButton
+                            .frame(maxWidth: .infinity)
+                    }
                 }
             }
         }

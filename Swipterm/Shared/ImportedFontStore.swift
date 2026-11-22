@@ -60,8 +60,8 @@ final class ImportedFontStore: ObservableObject {
             }
             return Self.scan(in: directory)
         }
-        if Preferences.fontFamily.value == font.familyName {
-            Preferences.fontFamily.value = ""
+        if AppSettings.shared.fontFamily == font.familyName {
+            AppSettings.shared.fontFamily = ""
         }
     }
 

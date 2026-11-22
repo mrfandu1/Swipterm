@@ -128,6 +128,15 @@ struct TerminalSurfaceView: View {
             }
         }
 
+        override var canBecomeFirstResponder: Bool {
+            wantsFocus && super.canBecomeFirstResponder
+        }
+
+        override func toggleSoftwareKeyboard() {
+            guard wantsFocus else { return }
+            super.toggleSoftwareKeyboard()
+        }
+
         override var inputAccessoryView: UIView? {
             if GCKeyboard.coalesced != nil, (delegate as? TerminalExtras)?.alwaysShowsSymbolBar != true {
                 return nil

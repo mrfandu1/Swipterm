@@ -1233,62 +1233,6 @@
         }
       }
     },
-    "Initialize": {
-      "localizations": {
-        "fa": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "راه‌اندازی اولیه"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Инициализация"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "初始化"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "初始化"
-          }
-        }
-      }
-    },
-    "Initializing the container…": {
-      "localizations": {
-        "fa": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "در حال راه‌اندازی اولیه کانتینر…"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Инициализация контейнера…"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在初始化容器…"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在初始化容器…"
-          }
-        }
-      }
-    },
     "Installing…": {
       "localizations": {
         "fa": {
@@ -1341,34 +1285,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "保持螢幕常亮"
-          }
-        }
-      }
-    },
-    "Kernel": {
-      "localizations": {
-        "fa": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "هسته"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ядро"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "内核"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "核心"
           }
         }
       }
@@ -2209,6 +2125,34 @@
           "stringUnit": {
             "state": "translated",
             "value": "設置"
+          }
+        }
+      }
+    },
+    "Setup": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "راه‌اندازی"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Настройка"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "初始化"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "初始化"
           }
         }
       }

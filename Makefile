@@ -6,7 +6,7 @@ build_ios:
 	xcodebuild build -skipMacroValidation -scheme Swipterm -configuration Debug -destination 'generic/platform=iOS' | xcbeautify | grep -A 10 -e "Build Succeeded" -e "BUILD FAILED" -e "❌"
 
 build_ios_simulator:
-	xcodebuild build -skipMacroValidation -scheme Swipterm -configuration Debug -destination 'generic/platform=iOS Simulator' | xcbeautify | grep -A 10 -e "Build Succeeded" -e "BUILD FAILED" -e "❌"
+	xcodebuild build -skipMacroValidation -scheme Swipterm -configuration Debug -destination 'generic/platform=iOS Simulator' ARCHS=arm64 | xcbeautify | grep -A 10 -e "Build Succeeded" -e "BUILD FAILED" -e "❌"
 
 fmt:
 	swiftformat Swipterm

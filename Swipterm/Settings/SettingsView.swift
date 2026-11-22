@@ -4,7 +4,7 @@ struct SettingsView: View {
     private let system = LinuxSystem.shared
 
     @Environment(\.dismiss) private var dismiss
-    @AppStorage(Preferences.keepScreenAwake) private var keepScreenAwake: Bool
+    @Bindable private var settings = AppSettings.shared
     @State private var isConfirmingReset = false
     @State private var isPromptingRestart = false
 
@@ -14,13 +14,10 @@ struct SettingsView: View {
                 NavigationLink("Ghostty Configuration") {
                     GhosttyConfigurationView()
                 }
-                Toggle("Keep Screen Awake", isOn: $keepScreenAwake)
+                Toggle("Keep Screen Awake", isOn: $settings.keepScreenAwake)
             }
             if let container = system.installedContainer {
                 Section("Container") {
-                    if let kernelRelease = system.bootedKernelRelease {
-                        LabeledContent("Kernel", value: kernelRelease)
-                    }
                     if container.distribution?.requiresSystemInit != true {
                         StartupModePicker(selection: Binding {
                             container.initMode

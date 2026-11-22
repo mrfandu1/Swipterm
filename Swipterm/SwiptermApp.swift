@@ -18,15 +18,24 @@ private struct ContentView: View {
             switch system.state {
             case .checking:
                 Color.clear
-            case .setup:
-                SetupView()
-            case let .installing(progress):
-                SetupProgressView(progress: progress) {
-                    system.cancelInstallation()
+            case .setup, .installing, .provisioning:
+                NavigationStack {
+                    Group {
+                        switch system.state {
+                        case let .installing(progress):
+                            SetupProgressView(progress: progress) {
+                                system.reset()
+                            }
+                        case let .provisioning(provisioning):
+                            ProvisioningView(provisioning: provisioning)
+                                .id(provisioning.attempt)
+                        default:
+                            SetupView()
+                        }
+                    }
+                    .navigationTitle("Setup")
+                    .navigationBarTitleDisplayMode(.inline)
                 }
-            case let .provisioning(provisioning):
-                ProvisioningView(provisioning: provisioning)
-                    .id(provisioning.attempt)
             case .booting, .running:
                 TerminalContainerView(sessionManager: sessionManager)
             case .halted:
@@ -77,11 +86,11 @@ private struct ContentView: View {
 private struct KeepScreenAwakeModifier: ViewModifier {
     let isRequired: Bool
 
-    @AppStorage(Preferences.keepScreenAwake) private var keepScreenAwake: Bool
+    private let settings = AppSettings.shared
 
     func body(content: Content) -> some View {
         content
-            .onChange(of: keepScreenAwake || isRequired, initial: true) { _, keepsAwake in
+            .onChange(of: settings.keepScreenAwake || isRequired, initial: true) { _, keepsAwake in
                 UIApplication.shared.isIdleTimerDisabled = keepsAwake
             }
     }

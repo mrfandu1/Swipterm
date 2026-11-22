@@ -137,6 +137,7 @@ final class LinuxSystem {
     private var bootstrapped = false
     private var generation: UInt64 = 0
     private var activeTask: Task<Void, Never>?
+    private var pendingTeardown: Task<Void, Never>?
     private var isSuspended = false
     private var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
     private var lifecycleObservers: [NSObjectProtocol] = []
@@ -149,10 +150,6 @@ final class LinuxSystem {
         ConsoleText.plain(consoleChunks)
     }
 
-    var bootedKernelRelease: String? {
-        runtime?.bootedKernel.release
-    }
-
     func bootstrap() {
         guard !bootstrapped else { return }
         bootstrapped = true
@@ -160,21 +157,15 @@ final class LinuxSystem {
 
         let generation = beginOperation()
         activeTask = Task {
-            let shouldReset = Preferences.resetContainerOnLaunch.value
-            Preferences.resetContainerOnLaunch.value = false
-
             let existing = await Task.detached { () -> (valid: Bool, metadata: ContainerMetadata?) in
-                Self.removeDownloadStagingDirectory()
-                if shouldReset {
-                    Self.removeRootDirectory()
-                    return (false, nil)
-                }
+                Self.moveToTrash(Self.downloadStagingDirectoryURL)
                 guard LinuxRootImage.isInstalled(at: Self.rootDirectoryURL) else {
-                    Self.removeRootDirectory()
+                    Self.moveToTrash(Self.rootDirectoryURL)
                     return (false, nil)
                 }
                 return (true, Self.loadContainerMetadata())
             }.value
+            tearDownInBackground(nil)
 
             guard self.generation == generation else { return }
             guard existing.valid else {
@@ -292,7 +283,7 @@ final class LinuxSystem {
                 state = .installing(InstallProgress(stage: .extracting))
 
                 try await Task.detached {
-                    Self.removeRootDirectory()
+                    try? FileManager.default.removeItem(at: Self.rootDirectoryURL)
                     try FileManager.default.createDirectory(at: Self.rootDirectoryURL, withIntermediateDirectories: true)
                     try Self.saveContainerMetadata(metadata)
                 }.value
@@ -309,35 +300,19 @@ final class LinuxSystem {
                 await provision(metadata, generation: generation)
             } catch is CancellationError {
                 guard self.generation == generation else { return }
-                await Task.detached {
-                    Self.removeRootDirectory()
-                }.value
+                Self.moveToTrash(Self.rootDirectoryURL)
+                tearDownInBackground(nil)
                 installedContainer = nil
                 activeInitMode = nil
                 state = .setup
             } catch {
                 guard self.generation == generation else { return }
-                await Task.detached {
-                    Self.removeRootDirectory()
-                }.value
+                Self.moveToTrash(Self.rootDirectoryURL)
+                tearDownInBackground(nil)
                 installedContainer = nil
                 activeInitMode = nil
                 state = .failed(error.localizedDescription)
             }
-        }
-    }
-
-    func cancelInstallation() {
-        let generation = beginOperation()
-        activeTask = Task {
-            await Task.detached {
-                Self.removeRootDirectory()
-                Self.removeDownloadStagingDirectory()
-            }.value
-            guard self.generation == generation else { return }
-            installedContainer = nil
-            activeInitMode = nil
-            state = .setup
         }
     }
 
@@ -393,25 +368,15 @@ final class LinuxSystem {
     }
 
     func reset() {
-        Preferences.resetContainerOnLaunch.value = false
-        let generation = beginOperation()
-        state = .checking
+        _ = beginOperation()
+        let previousRuntime = detachRuntimeForShutdown()
+        Self.moveToTrash(Self.rootDirectoryURL)
+        Self.moveToTrash(Self.downloadStagingDirectoryURL)
+        tearDownInBackground(previousRuntime)
         installedContainer = nil
         activeInitMode = nil
         resetConsole()
-        let previousRuntime = detachRuntimeForShutdown()
-
-        activeTask = Task {
-            if let previousRuntime {
-                await shutDownRuntime(previousRuntime)
-            }
-            await Task.detached {
-                Self.removeRootDirectory()
-                Self.removeDownloadStagingDirectory()
-            }.value
-            guard self.generation == generation else { return }
-            state = .setup
-        }
+        state = .setup
     }
 
     func subscribeConsole(_ handler: @escaping (Data) -> Void) -> UUID {
@@ -552,6 +517,21 @@ final class LinuxSystem {
         }
     }
 
+    private func tearDownInBackground(_ target: LinuxRuntime?) {
+        if let target {
+            let previousTeardown = pendingTeardown
+            pendingTeardown = Task {
+                await previousTeardown?.value
+                await shutDownRuntime(target)
+            }
+        }
+        let teardown = pendingTeardown
+        Task.detached(priority: .utility) {
+            await teardown?.value
+            Self.emptyTrash()
+        }
+    }
+
     private func startRuntime(
         _ metadata: ContainerMetadata,
         initMode: ContainerInitMode,
@@ -559,6 +539,8 @@ final class LinuxSystem {
         writesHostname: Bool,
         generation: UInt64
     ) async throws -> LinuxRuntime {
+        await pendingTeardown?.value
+        guard self.generation == generation else { throw CancellationError() }
         bootCount &+= 1
         let boot = bootCount
         let normalizer = ConsoleNewlineNormalizer()
@@ -585,7 +567,7 @@ final class LinuxSystem {
             try await Self.prepareGuestEnvironment(runtime, hostname: hostname)
         }
         guard self.generation == generation else {
-            await shutDownRuntime(bootedRuntime)
+            tearDownInBackground(bootedRuntime)
             throw CancellationError()
         }
         runtime = bootedRuntime
@@ -980,27 +962,25 @@ final class LinuxSystem {
         return destination
     }
 
-    private nonisolated static func removeRootDirectory() {
+    private nonisolated static func moveToTrash(_ url: URL) {
         let fm = FileManager.default
-        let support = URL.applicationSupportDirectory
-        let root = rootDirectoryURL
-        if fm.fileExists(atPath: root.path(percentEncoded: false)) {
-            let trash = support.appending(path: ".Root.trash.\(UUID().uuidString)", directoryHint: .isDirectory)
-            if (try? fm.moveItem(at: root, to: trash)) != nil {
-                try? fm.removeItem(at: trash)
-            } else {
-                try? fm.removeItem(at: root)
-            }
-        }
-        if let items = try? fm.contentsOfDirectory(at: support, includingPropertiesForKeys: nil) {
-            for item in items where item.lastPathComponent.hasPrefix(".Root.") {
-                try? fm.removeItem(at: item)
-            }
+        guard fm.fileExists(atPath: url.path(percentEncoded: false)) else { return }
+        let trash = url.deletingLastPathComponent()
+            .appending(path: ".\(url.lastPathComponent).trash.\(UUID().uuidString)", directoryHint: .isDirectory)
+        if (try? fm.moveItem(at: url, to: trash)) == nil {
+            try? fm.removeItem(at: url)
         }
     }
 
-    private nonisolated static func removeDownloadStagingDirectory() {
-        try? FileManager.default.removeItem(at: downloadStagingDirectoryURL)
+    private nonisolated static func emptyTrash() {
+        let fm = FileManager.default
+        for url in [rootDirectoryURL, downloadStagingDirectoryURL] {
+            let prefix = ".\(url.lastPathComponent)."
+            let items = (try? fm.contentsOfDirectory(at: url.deletingLastPathComponent(), includingPropertiesForKeys: nil)) ?? []
+            for item in items where item.lastPathComponent.hasPrefix(prefix) {
+                try? fm.removeItem(at: item)
+            }
+        }
     }
 
     private nonisolated static func prepareGuestEnvironment(_ runtime: LinuxRuntime, hostname: String?) async throws {
