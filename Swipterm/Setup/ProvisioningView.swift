@@ -37,7 +37,6 @@ struct ProvisioningView: View {
         }
     }
 
-    @ViewBuilder
     private var statusBar: some View {
         Group {
             if let failure = provisioning.failure {

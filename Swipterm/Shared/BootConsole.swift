@@ -1,6 +1,6 @@
 import Foundation
 
-nonisolated final class ConsoleNewlineNormalizer: @unchecked Sendable {
+final nonisolated class ConsoleNewlineNormalizer: @unchecked Sendable {
     private let lock = NSLock()
     private var lastByteWasCR = false
 

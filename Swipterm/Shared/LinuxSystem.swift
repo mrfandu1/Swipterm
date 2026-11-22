@@ -91,7 +91,7 @@ final class LinuxSystem {
         let process: LinuxProcess
     }
 
-    private enum ProvisioningError: LocalizedError {
+    private enum StartupError: LocalizedError {
         case exited(Int32)
         case signaled(Int32)
         case halted
@@ -113,6 +113,8 @@ final class LinuxSystem {
     private static let loginTimeout = Duration.seconds(300)
     private static let systemTimeout = Duration.seconds(120)
     private static let outputDrainTimeout = Duration.seconds(1)
+    private static let haltReasonTimeout = Duration.seconds(5)
+    private static let maxBootReboots = 2
 
     private(set) var state: State = .checking
     private(set) var installedContainer: ContainerMetadata?
@@ -126,6 +128,11 @@ final class LinuxSystem {
     @ObservationIgnored private var setupTerminal: LinuxTerminal?
     @ObservationIgnored private var setupTerminalSize = LinuxTerminal.Size(columns: 80, rows: 24)
     @ObservationIgnored private var haltedDuringProvisioning = false
+    @ObservationIgnored private var awaitingBootReadiness = false
+    @ObservationIgnored private var bootHalt: LinuxRuntime.HaltReason?
+    @ObservationIgnored private var bootHaltWaiter: (boot: UInt64, continuation: CheckedContinuation<Void, Never>)?
+    @ObservationIgnored private var bootCount: UInt64 = 0
+    @ObservationIgnored private var runtimeBoot: UInt64 = 0
     private var provisioningAttempt = 0
     private var bootstrapped = false
     private var generation: UInt64 = 0
@@ -140,6 +147,10 @@ final class LinuxSystem {
 
     var consoleText: String {
         ConsoleText.plain(consoleChunks)
+    }
+
+    var bootedKernelRelease: String? {
+        runtime?.bootedKernel.release
     }
 
     func bootstrap() {
@@ -158,7 +169,7 @@ final class LinuxSystem {
                     Self.removeRootDirectory()
                     return (false, nil)
                 }
-                guard Self.hasValidInstalledRoot() else {
+                guard LinuxRootImage.isInstalled(at: Self.rootDirectoryURL) else {
                     Self.removeRootDirectory()
                     return (false, nil)
                 }
@@ -187,7 +198,7 @@ final class LinuxSystem {
             if metadata.setupCompleted {
                 await bootInstalledRoot(metadata: metadata, generation: generation)
             } else {
-                await provision(metadata, generation: generation, resettingUpper: true)
+                await provision(metadata, generation: generation)
             }
         }
     }
@@ -280,8 +291,10 @@ final class LinuxSystem {
 
                 state = .installing(InstallProgress(stage: .extracting))
 
-                await Task.detached {
+                try await Task.detached {
                     Self.removeRootDirectory()
+                    try FileManager.default.createDirectory(at: Self.rootDirectoryURL, withIntermediateDirectories: true)
+                    try Self.saveContainerMetadata(metadata)
                 }.value
 
                 try await LinuxRootImage.archive(at: archiveURL).install(to: Self.rootDirectoryURL)
@@ -293,7 +306,7 @@ final class LinuxSystem {
                 }.value
 
                 guard self.generation == generation else { return }
-                await provision(metadata, generation: generation, resettingUpper: false)
+                await provision(metadata, generation: generation)
             } catch is CancellationError {
                 guard self.generation == generation else { return }
                 await Task.detached {
@@ -341,7 +354,7 @@ final class LinuxSystem {
                 await shutDownRuntime(previousRuntime)
             }
             guard self.generation == generation else { return }
-            await provision(metadata, generation: generation, resettingUpper: true)
+            await provision(metadata, generation: generation)
         }
     }
 
@@ -374,7 +387,7 @@ final class LinuxSystem {
             if metadata.setupCompleted {
                 await bootInstalledRoot(metadata: metadata, generation: generation)
             } else {
-                await provision(metadata, generation: generation, resettingUpper: true)
+                await provision(metadata, generation: generation)
             }
         }
     }
@@ -539,15 +552,20 @@ final class LinuxSystem {
         }
     }
 
-    private func runtimeConfiguration(
-        for metadata: ContainerMetadata,
+    private func startRuntime(
+        _ metadata: ContainerMetadata,
         initMode: ContainerInitMode,
+        kernel: LinuxRuntime.Configuration.Kernel,
+        writesHostname: Bool,
         generation: UInt64
-    ) -> LinuxRuntime.Configuration {
+    ) async throws -> LinuxRuntime {
+        bootCount &+= 1
+        let boot = bootCount
         let normalizer = ConsoleNewlineNormalizer()
-        return LinuxRuntime.Configuration(
+        let configuration = LinuxRuntime.Configuration(
             root: Self.rootDirectoryURL,
             initMode: initMode.runtimeInitMode,
+            kernel: kernel,
             hostname: metadata.name,
             consoleOutput: { data in
                 let chunk = normalizer.normalize(data)
@@ -558,10 +576,24 @@ final class LinuxSystem {
             },
             haltHandler: { reason in
                 Task { @MainActor in
-                    LinuxSystem.shared.runtimeDidHalt(reason, generation: generation)
+                    LinuxSystem.shared.runtimeDidHalt(reason, generation: generation, boot: boot)
                 }
             }
         )
+        let hostname = writesHostname ? metadata.name : nil
+        let bootedRuntime = try await LinuxRuntime.boot(configuration) { runtime in
+            try await Self.prepareGuestEnvironment(runtime, hostname: hostname)
+        }
+        guard self.generation == generation else {
+            await shutDownRuntime(bootedRuntime)
+            throw CancellationError()
+        }
+        runtime = bootedRuntime
+        runtimeBoot = boot
+        if isSuspended {
+            bootedRuntime.suspend()
+        }
+        return bootedRuntime
     }
 
     private func bootInstalledRoot(metadata: ContainerMetadata, generation: UInt64) async {
@@ -569,39 +601,108 @@ final class LinuxSystem {
         activeInitMode = metadata.initMode
         state = .booting
         do {
-            let bootedRuntime = try await LinuxRuntime.boot(
-                runtimeConfiguration(for: metadata, initMode: metadata.initMode, generation: generation)
-            ) { runtime in
-                try await Self.prepareGuestEnvironment(runtime, hostname: nil)
+            var bootedBundled = true
+            do {
+                try await bootRoot(metadata, kernel: .installed, generation: generation, bootedBundled: &bootedBundled)
+            } catch where !bootedBundled && !(error is CancellationError) && self.generation == generation {
+                await shutDownDetachedRuntime()
+                guard self.generation == generation else { return }
+                appendConsole(Data((
+                    "\r\n\u{1B}[1;31merror:\u{1B}[0m \(error.localizedDescription)\r\n" +
+                        "\u{1B}[1m==> Retrying with the built-in kernel\u{1B}[0m\r\n"
+                ).utf8), generation: generation)
+                try await bootRoot(metadata, kernel: .bundled, generation: generation, bootedBundled: &bootedBundled)
             }
-
-            guard self.generation == generation else {
-                await shutDownRuntime(bootedRuntime)
-                return
-            }
-            runtime = bootedRuntime
-            if isSuspended {
-                bootedRuntime.suspend()
-            }
-
-            try await bootedRuntime.waitReady(.login, timeout: Self.loginTimeout)
-            guard self.generation == generation, runtime === bootedRuntime else { return }
             state = .running
             completeRunningWaiters()
         } catch is CancellationError {
             guard self.generation == generation else { return }
             cancelRunningWaiters()
             await shutDownDetachedRuntime()
+            guard self.generation == generation else { return }
             state = .setup
         } catch {
             guard self.generation == generation else { return }
             cancelRunningWaiters()
             await shutDownDetachedRuntime()
+            guard self.generation == generation else { return }
             state = .failed(error.localizedDescription)
         }
     }
 
-    private func provision(_ metadata: ContainerMetadata, generation: UInt64, resettingUpper: Bool) async {
+    private func bootRoot(
+        _ metadata: ContainerMetadata,
+        kernel: LinuxRuntime.Configuration.Kernel,
+        generation: UInt64,
+        bootedBundled: inout Bool
+    ) async throws {
+        var reboots = 0
+        while true {
+            let bootedRuntime = try await startRuntime(
+                metadata,
+                initMode: metadata.initMode,
+                kernel: kernel,
+                writesHostname: false,
+                generation: generation
+            )
+            let boot = runtimeBoot
+            let bootedKernel = bootedRuntime.bootedKernel
+            bootedBundled = bootedKernel.isBundled
+            var log = "\u{1B}[1m==> Linux \(bootedKernel.release)\(bootedKernel.isBundled ? " (built-in)" : "")\u{1B}[0m\r\n"
+            if let fallbackReason = bootedKernel.fallbackReason {
+                log += "\u{1B}[1;33mwarning:\u{1B}[0m \(fallbackReason)\r\n"
+            }
+            appendConsole(Data(log.utf8), generation: generation)
+
+            awaitingBootReadiness = true
+            bootHalt = nil
+            defer {
+                if self.generation == generation {
+                    awaitingBootReadiness = false
+                }
+            }
+            var halted = false
+            do {
+                try await bootedRuntime.waitReady(.login, timeout: Self.loginTimeout)
+            } catch let error as LinuxError where error == .ESRCH {
+                halted = true
+                await waitForBootHalt(boot)
+            }
+            guard self.generation == generation else { throw CancellationError() }
+            guard halted || bootHalt != nil else { return }
+            guard bootHalt == .reboot, reboots < Self.maxBootReboots else { throw StartupError.halted }
+            reboots += 1
+            await shutDownDetachedRuntime()
+            guard self.generation == generation else { throw CancellationError() }
+            appendConsole(Data("\r\n\u{1B}[1m==> Rebooting\u{1B}[0m\r\n".utf8), generation: generation)
+        }
+    }
+
+    private func waitForBootHalt(_ boot: UInt64) async {
+        guard bootHalt == nil else { return }
+        let timeout = Task {
+            try? await Task.sleep(for: Self.haltReasonTimeout)
+            resumeBootHaltWaiter(boot)
+        }
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                bootHaltWaiter = (boot, continuation)
+            }
+        } onCancel: {
+            Task { @MainActor in
+                self.resumeBootHaltWaiter(boot)
+            }
+        }
+        timeout.cancel()
+    }
+
+    private func resumeBootHaltWaiter(_ boot: UInt64) {
+        guard let waiter = bootHaltWaiter, waiter.boot == boot else { return }
+        bootHaltWaiter = nil
+        waiter.continuation.resume()
+    }
+
+    private func provision(_ metadata: ContainerMetadata, generation: UInt64) async {
         provisioningAttempt += 1
         let attempt = provisioningAttempt
         resetConsole()
@@ -610,11 +711,6 @@ final class LinuxSystem {
         state = .provisioning(Provisioning(attempt: attempt))
         var metadata = metadata
         do {
-            if resettingUpper {
-                try await Task.detached {
-                    try LinuxRuntime.resetUpper(at: Self.rootDirectoryURL)
-                }.value
-            }
             var setupMode: ContainerInitMode = metadata.distribution?.requiresSystemInit == true ? .system : .managed
             var (runtime, release) = try await bootForProvisioning(metadata, initMode: setupMode, generation: generation)
             if setupMode == .managed, release?.distribution?.requiresSystemInit == true {
@@ -671,15 +767,15 @@ final class LinuxSystem {
 
             guard self.generation == generation else { return }
             if haltedDuringProvisioning {
-                throw ProvisioningError.halted
+                throw StartupError.halted
             }
             switch termination {
             case .exited(0):
                 break
             case let .exited(code):
-                throw ProvisioningError.exited(code)
+                throw StartupError.exited(code)
             case let .signaled(signal):
-                throw ProvisioningError.signaled(signal.rawValue)
+                throw StartupError.signaled(signal.rawValue)
             }
 
             metadata.setupCompleted = true
@@ -691,20 +787,15 @@ final class LinuxSystem {
             guard self.generation == generation else { return }
             installedContainer = completed
 
-            if completed.initMode != setupMode {
-                await shutDownDetachedRuntime()
-                guard self.generation == generation else { return }
-                await bootInstalledRoot(metadata: completed, generation: generation)
-            } else {
-                state = .running
-                completeRunningWaiters()
-            }
+            await shutDownDetachedRuntime()
+            guard self.generation == generation else { return }
+            await bootInstalledRoot(metadata: completed, generation: generation)
         } catch {
             guard self.generation == generation else { return }
             await shutDownDetachedRuntime()
             guard self.generation == generation else { return }
-            let message = haltedDuringProvisioning && !(error is ProvisioningError)
-                ? ProvisioningError.halted.localizedDescription
+            let message = haltedDuringProvisioning && !(error is StartupError)
+                ? StartupError.halted.localizedDescription
                 : error.localizedDescription
             state = .provisioning(Provisioning(attempt: attempt, failure: message))
         }
@@ -716,20 +807,18 @@ final class LinuxSystem {
         generation: UInt64
     ) async throws -> (LinuxRuntime, OSRelease?) {
         activeInitMode = initMode
-        let bootedRuntime = try await LinuxRuntime.boot(
-            runtimeConfiguration(for: metadata, initMode: initMode, generation: generation)
-        ) { runtime in
-            try await Self.prepareGuestEnvironment(runtime, hostname: metadata.name)
+        let bootedRuntime = try await startRuntime(
+            metadata,
+            initMode: initMode,
+            kernel: .bundled,
+            writesHostname: true,
+            generation: generation
+        )
+        do {
+            try await bootedRuntime.waitReady(.login, timeout: Self.loginTimeout)
+        } catch let error as LinuxError where error == .ESRCH {
+            throw StartupError.halted
         }
-        guard self.generation == generation else {
-            await shutDownRuntime(bootedRuntime)
-            throw CancellationError()
-        }
-        runtime = bootedRuntime
-        if isSuspended {
-            bootedRuntime.suspend()
-        }
-        try await bootedRuntime.waitReady(.login, timeout: Self.loginTimeout)
         if initMode == .system {
             try? await bootedRuntime.waitReady(.system, timeout: Self.systemTimeout)
         }
@@ -745,16 +834,16 @@ final class LinuxSystem {
         }
     }
 
-    private func runtimeDidHalt(_ reason: LinuxRuntime.HaltReason, generation: UInt64) {
-        guard self.generation == generation, runtime != nil else { return }
+    private func runtimeDidHalt(_ reason: LinuxRuntime.HaltReason, generation: UInt64, boot: UInt64) {
+        guard self.generation == generation, let runtime, runtimeBoot == boot else { return }
+        if state == .booting, awaitingBootReadiness {
+            bootHalt = reason
+            resumeBootHaltWaiter(boot)
+            return
+        }
         if case .provisioning = state {
             haltedDuringProvisioning = true
-            let previousRuntime = detachRuntimeForShutdown()
-            Task {
-                if let previousRuntime {
-                    await shutDownRuntime(previousRuntime)
-                }
-            }
+            shutDownHaltedRuntime(runtime)
             return
         }
         switch reason {
@@ -764,11 +853,19 @@ final class LinuxSystem {
             _ = beginOperation()
             state = .halted
             resetConsole()
-            let previousRuntime = detachRuntimeForShutdown()
-            activeTask = Task {
-                if let previousRuntime {
-                    await shutDownRuntime(previousRuntime)
-                }
+            activeTask = shutDownHaltedRuntime(runtime)
+        }
+    }
+
+    @discardableResult
+    private func shutDownHaltedRuntime(_ halted: LinuxRuntime) -> Task<Void, Never> {
+        onWillShutdown?()
+        setupTerminal?.close()
+        setupTerminal = nil
+        return Task {
+            await shutDownRuntime(halted)
+            if runtime === halted {
+                runtime = nil
             }
         }
     }
@@ -843,14 +940,6 @@ final class LinuxSystem {
         FileManager.default.temporaryDirectory.appending(path: "SwiptermDownloads", directoryHint: .isDirectory)
     }
 
-    private nonisolated static func hasValidInstalledRoot() -> Bool {
-        let fm = FileManager.default
-        let root = rootDirectoryURL
-        return ["swipterm.json", "upper.ext4", "lower.erofs"].allSatisfy { name in
-            fm.fileExists(atPath: root.appending(path: name).path(percentEncoded: false))
-        }
-    }
-
     private nonisolated static func loadContainerMetadata() -> ContainerMetadata? {
         guard let data = try? Data(contentsOf: containerMetadataURL) else { return nil }
         return try? JSONDecoder().decode(ContainerMetadata.self, from: data)
@@ -918,7 +1007,9 @@ final class LinuxSystem {
         if let hostname {
             try await runtime.fileSystem.writeFile("/etc/hostname", contents: Data("\(hostname)\n".utf8), permissions: 0o644)
         }
-        try await runtime.registerDevice(at: "/dev/clipboard", handler: ClipboardDevice())
+        do {
+            try await runtime.registerDevice(at: "/dev/clipboard", handler: ClipboardDevice())
+        } catch let error as LinuxError where error == .ENODEV {}
         for command in ["open", "xdg-open"] {
             try await runtime.registerCommand(named: command) { invocation in
                 try await Self.handleOpenCommand(invocation, name: command)

@@ -18,6 +18,9 @@ struct SettingsView: View {
             }
             if let container = system.installedContainer {
                 Section("Container") {
+                    if let kernelRelease = system.bootedKernelRelease {
+                        LabeledContent("Kernel", value: kernelRelease)
+                    }
                     if container.distribution?.requiresSystemInit != true {
                         StartupModePicker(selection: Binding {
                             container.initMode

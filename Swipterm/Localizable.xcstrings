@@ -1345,6 +1345,34 @@
         }
       }
     },
+    "Kernel": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "هسته"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ядро"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "内核"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "核心"
+          }
+        }
+      }
+    },
     "Keyboard": {
       "localizations": {
         "fa": {

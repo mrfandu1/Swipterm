@@ -188,7 +188,7 @@ nonisolated struct PackageRepositoryConfigurator {
 
     private func read(_ path: String) async throws -> String? {
         do {
-            return String(data: try await fileSystem.contents(of: path), encoding: .utf8)
+            return try String(data: await fileSystem.contents(of: path), encoding: .utf8)
         } catch let error as LinuxError where error == .ENOENT || error == .ENOTDIR {
             return nil
         }

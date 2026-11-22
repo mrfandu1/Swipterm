@@ -42,6 +42,7 @@ nonisolated enum ContainerProvisioner {
             "LANG": "C.UTF-8",
             "DEBIAN_FRONTEND": "noninteractive",
             "SWIPTERM_DISTRIBUTION": distribution?.rawValue ?? "",
+            "SWIPTERM_VERSION_ID": release?.versionID ?? "",
             "SWIPTERM_USER": request.user,
             "SWIPTERM_HOSTNAME": request.hostname,
         ]
@@ -132,10 +133,12 @@ nonisolated enum ContainerProvisioner {
             "[ \(values.map(literal).joined(separator: " ")) ]"
         }
         var lines = [
-            "{ config, pkgs, ... }:",
+            "{ config, lib, pkgs, ... }:",
             "",
             "{",
             "  imports = [ <nixpkgs/nixos/modules/virtualisation/lxc-container.nix> ];",
+            "",
+            "  boot.kernel.enable = lib.mkForce true;",
             "",
             "  networking.hostName = \(literal(hostname));",
             "",
@@ -185,8 +188,28 @@ nonisolated enum ContainerProvisioner {
         exit 1
     }
 
+    warn() {
+        printf '\033[1;33mwarning:\033[0m %s\n' "$*" >&2
+    }
+
     have() {
         command -v "$1" >/dev/null 2>&1
+    }
+
+    set_option() {
+        mkdir -p "${1%/*}"
+        if [ -f "$1" ] && grep -q "^$2=" "$1"; then
+            sed -i "s/^$2=.*/$2=$3/" "$1"
+        else
+            printf '%s=%s\n' "$2" "$3" >> "$1"
+        fi
+    }
+
+    mask() {
+        for path in "$@"; do
+            mkdir -p "${path%/*}"
+            ln -sf /dev/null "$path"
+        done
     }
 
     in_group() {
@@ -228,6 +251,123 @@ nonisolated enum ContainerProvisioner {
             step "Installing sudo"
             emerge --getbinpkg --usepkg --noreplace app-admin/sudo
         fi
+    }
+
+    has_kernel() {
+        running=$(uname -r)
+        for modules in /lib/modules/* /usr/lib/modules/*; do
+            kver=${modules##*/}
+            if [ "$kver" = "$running" ] || [ ! -f "$modules/modules.dep" ]; then
+                continue
+            fi
+            if [ -s "$modules/vmlinuz" ] || [ -s "$modules/Image" ] ||
+                [ -s "/boot/vmlinuz-$kver" ] || [ -s "/boot/vmlinux-$kver" ] ||
+                [ -s "/boot/Image-$kver" ] || [ -s "/boot/kernel-$kver" ] ||
+                [ -s /boot/vmlinuz-virt ] || [ -s /boot/Image.gz ] || [ -s /boot/Image ]; then
+                return 0
+            fi
+        done
+        return 1
+    }
+
+    install_kernel() {
+        case "$SWIPTERM_DISTRIBUTION" in
+        debian | devuan | kali | ubuntu)
+            set_option /etc/initramfs-tools/update-initramfs.conf update_initramfs no
+            INITRD=No dpkg --force-confold --configure -a
+            ;;
+        esac
+        has_kernel && return 0
+        case "$SWIPTERM_DISTRIBUTION:$SWIPTERM_VERSION_ID" in
+        alma:8 | alma:8.* | rocky:8 | rocky:8.*)
+            warn "Version 8 of this distribution only ships 64K-page kernels; using the built-in kernel."
+            return 0
+            ;;
+        esac
+        step "Installing the Linux kernel"
+        case "$SWIPTERM_DISTRIBUTION" in
+        debian | devuan | kali | ubuntu)
+            apt-get update
+            case "$SWIPTERM_DISTRIBUTION" in
+            ubuntu)
+                INITRD=No apt-get install -y --no-install-recommends -o Dpkg::Options::=--force-confold \
+                    linux-image-virtual
+                ;;
+            kali)
+                INITRD=No apt-get install -y --no-install-recommends -o Dpkg::Options::=--force-confold \
+                    linux-image-cloud-arm64 initramfs-tools ||
+                    INITRD=No apt-get install -y --no-install-recommends -o Dpkg::Options::=--force-confold \
+                        linux-image-arm64 initramfs-tools
+                ;;
+            *)
+                INITRD=No apt-get install -y --no-install-recommends -o Dpkg::Options::=--force-confold \
+                    linux-image-cloud-arm64 initramfs-tools
+                ;;
+            esac
+            ;;
+        alpine)
+            set_option /etc/mkinitfs/mkinitfs.conf disable_trigger yes
+            apk add --no-cache linux-virt
+            ;;
+        arch)
+            if [ -e /var/lib/pacman/db.lck ] && ! pgrep -x pacman >/dev/null 2>&1; then
+                rm -f /var/lib/pacman/db.lck
+            fi
+            mask /etc/pacman.d/hooks/90-mkinitcpio-install.hook
+            pacman -Syu --noconfirm --needed --disable-download-timeout linux-aarch64
+            ;;
+        alma | centos | fedora | openEuler | oracle | rocky)
+            mask /etc/kernel/install.d/50-dracut.install /etc/kernel/install.d/20-grub.install
+            case "$SWIPTERM_DISTRIBUTION:$SWIPTERM_VERSION_ID" in
+            openEuler:*)
+                mkdir -p /etc/sysconfig
+                if ! grep -qs '^dracut()' /etc/sysconfig/kernel; then
+                    printf 'dracut() { :; }\n' >> /etc/sysconfig/kernel
+                fi
+                dnf -y --setopt=install_weak_deps=False install kernel
+                ;;
+            oracle:8 | oracle:8.*)
+                uek=$(dnf -q repoquery --latest-limit=1 kernel-uek-core)
+                if [ -z "$uek" ]; then
+                    warn "No 4K-page UEK kernel is available; using the built-in kernel."
+                    return 0
+                fi
+                dnf -y --setopt=install_weak_deps=False install kernel-uek-core
+                ;;
+            oracle:*)
+                dnf -y --setopt=install_weak_deps=False install kernel-core kernel-modules-core ||
+                    dnf -y --setopt=install_weak_deps=False install kernel-uek-core
+                ;;
+            *)
+                dnf -y --setopt=install_weak_deps=False install kernel-core kernel-modules-core
+                ;;
+            esac
+            ;;
+        openSUSE)
+            mask /etc/kernel/install.d/50-dracut.install
+            DRACUT=/usr/bin/true zypper --non-interactive install --no-recommends kernel-kvmsmall ||
+                DRACUT=/usr/bin/true zypper --non-interactive install --no-recommends kernel-default-base
+            ;;
+        void)
+            xbps-install -Suy xbps
+            package=$(xbps-query -Rs --regex '^linux6\.[0-9]+-[0-9]' |
+                sed -n 's/^\[.\] \(linux6\.[0-9]*\)-.*/\1/p' | sort -t . -k 2 -n | tail -n 1)
+            if [ -n "$package" ]; then
+                xbps-install -Sy "$package"
+            else
+                xbps-install -Sy linux6.12 || xbps-install -Sy linux
+            fi
+            ;;
+        gentoo)
+            if [ ! -d /var/db/repos/gentoo/profiles ]; then
+                emerge-webrsync
+            fi
+            if ! emerge --ask=n --autounmask=n --getbinpkg=y --usepkgonly virtual/dist-kernel &&
+                ! emerge --ask=n --autounmask=n --getbinpkg=y --usepkgonly sys-kernel/gentoo-kernel-bin; then
+                warn "No prebuilt Gentoo kernel binary package is available; using the built-in kernel."
+            fi
+            ;;
+        esac
     }
 
     remove_template_user() {
@@ -370,6 +510,10 @@ nonisolated enum ContainerProvisioner {
     alpine) prepare_alpine ;;
     gentoo) prepare_gentoo ;;
     esac
+
+    if [ -n "${SWIPTERM_DISTRIBUTION:-}" ]; then
+        install_kernel
+    fi
 
     if [ "$user" != root ]; then
         case "${SWIPTERM_DISTRIBUTION:-}" in
