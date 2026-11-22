@@ -31,6 +31,7 @@ struct ProvisioningView: View {
                     .environment(\.colorScheme, overlayColorScheme)
             }
         }
+        .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbar {
             if provisioning.failure == nil {
@@ -85,7 +86,7 @@ struct ProvisioningView: View {
 
     private var retryButton: some View {
         Button("Retry") {
-            system.retryProvisioning()
+            system.retrySetup()
         }
         .buttonStyle(.borderedProminent)
     }
@@ -127,7 +128,7 @@ private final class SetupTerminal {
     let state: TerminalViewState
     let surfaceView: TerminalSurfaceView.SurfaceView
 
-    private(set) var hasVisibleOutput = false
+    private(set) var hasVisibleOutput = LinuxSystem.shared.hasConsoleOutput
     private(set) var backgroundColor: TerminalColor?
 
     @ObservationIgnored private let session: InMemoryTerminalSession

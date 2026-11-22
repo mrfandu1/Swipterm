@@ -18,7 +18,7 @@ struct SettingsView: View {
             }
             if let container = system.installedContainer {
                 Section("Container") {
-                    if container.distribution?.requiresSystemInit != true {
+                    if container.systemInit == .systemd {
                         StartupModePicker(selection: Binding {
                             container.initMode
                         } set: { initMode in
@@ -27,7 +27,7 @@ struct SettingsView: View {
                             if initMode != system.activeInitMode {
                                 isPromptingRestart = true
                             }
-                        }, nativeInitSystem: container.nativeInitSystem)
+                        })
                     }
                     Button("Reset", role: .destructive) {
                         isConfirmingReset = true

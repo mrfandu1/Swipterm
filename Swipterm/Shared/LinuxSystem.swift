@@ -8,7 +8,6 @@ final class LinuxSystem {
     enum State: Equatable {
         case checking
         case setup
-        case installing(InstallProgress)
         case provisioning(Provisioning)
         case booting
         case running
@@ -16,60 +15,16 @@ final class LinuxSystem {
         case failed(String)
 
         var keepsScreenAwake: Bool {
-            switch self {
-            case .installing:
-                true
-            case let .provisioning(provisioning):
-                provisioning.failure == nil
-            default:
-                false
+            if case let .provisioning(provisioning) = self {
+                return provisioning.failure == nil
             }
+            return false
         }
     }
 
     struct Provisioning: Equatable {
         let attempt: Int
         var failure: String?
-    }
-
-    struct InstallProgress: Equatable, Sendable {
-        enum Stage: Equatable, Sendable {
-            case downloading(bytesWritten: Int64, totalBytes: Int64?)
-            case verifying
-            case extracting
-        }
-
-        let stage: Stage
-
-        var canCancel: Bool {
-            switch stage {
-            case .downloading, .verifying:
-                return true
-            case .extracting:
-                return false
-            }
-        }
-
-        var stageDescription: LocalizedStringResource {
-            switch stage {
-            case .downloading:
-                "Downloading…"
-            case .verifying:
-                "Verifying…"
-            case .extracting:
-                "Installing…"
-            }
-        }
-
-        var byteDetail: String? {
-            guard case let .downloading(written, total) = stage else { return nil }
-            let writtenText = written.formatted(.byteCount(style: .file))
-            if let total, total > 0 {
-                let totalText = total.formatted(.byteCount(style: .file))
-                return "\(writtenText) / \(totalText)"
-            }
-            return writtenText
-        }
     }
 
     struct InstallRequest: Sendable {
@@ -84,11 +39,19 @@ final class LinuxSystem {
         let initMode: ContainerInitMode
         let user: String
         let password: String?
+        let software: ContainerSoftware
     }
 
     struct SessionHandle: Sendable {
         let terminal: LinuxTerminal
         let process: LinuxProcess
+    }
+
+    private struct ConsoleProgress {
+        var fraction: Double?
+        var detail: String?
+        var chunkIndex: Int?
+        var lineLength = 0
     }
 
     private enum StartupError: LocalizedError {
@@ -115,6 +78,11 @@ final class LinuxSystem {
     private static let outputDrainTimeout = Duration.seconds(1)
     private static let haltReasonTimeout = Duration.seconds(5)
     private static let maxBootReboots = 2
+    private static let consoleByteCountStyle = ByteCountFormatStyle(
+        style: .file,
+        spellsOutZero: false,
+        locale: Locale(identifier: "en_US_POSIX")
+    )
 
     private(set) var state: State = .checking
     private(set) var installedContainer: ContainerMetadata?
@@ -126,13 +94,16 @@ final class LinuxSystem {
     @ObservationIgnored private var consoleListeners: [UUID: (Data) -> Void] = [:]
     @ObservationIgnored private var runningWaiters: [UUID: CheckedContinuation<Void, any Error>] = [:]
     @ObservationIgnored private var setupTerminal: LinuxTerminal?
-    @ObservationIgnored private var setupTerminalSize = LinuxTerminal.Size(columns: 80, rows: 24)
+    @ObservationIgnored private var setupTerminalSize = LinuxTerminal.Size(columns: 40, rows: 24)
     @ObservationIgnored private var haltedDuringProvisioning = false
     @ObservationIgnored private var awaitingBootReadiness = false
     @ObservationIgnored private var bootHalt: LinuxRuntime.HaltReason?
     @ObservationIgnored private var bootHaltWaiter: (boot: UInt64, continuation: CheckedContinuation<Void, Never>)?
     @ObservationIgnored private var bootCount: UInt64 = 0
     @ObservationIgnored private var runtimeBoot: UInt64 = 0
+    @ObservationIgnored private var openConsoleProgress: ConsoleProgress?
+    @ObservationIgnored private var consoleProgressEpoch: UInt64 = 0
+    @ObservationIgnored private var pendingInstall: InstallRequest?
     private var provisioningAttempt = 0
     private var bootstrapped = false
     private var generation: UInt64 = 0
@@ -150,6 +121,10 @@ final class LinuxSystem {
         ConsoleText.plain(consoleChunks)
     }
 
+    var hasConsoleOutput: Bool {
+        !consoleChunks.isEmpty
+    }
+
     func bootstrap() {
         guard !bootstrapped else { return }
         bootstrapped = true
@@ -157,38 +132,32 @@ final class LinuxSystem {
 
         let generation = beginOperation()
         activeTask = Task {
-            let existing = await Task.detached { () -> (valid: Bool, metadata: ContainerMetadata?) in
+            let existing = await Task.detached { () -> ContainerMetadata? in
                 Self.moveToTrash(Self.downloadStagingDirectoryURL)
-                guard LinuxRootImage.isInstalled(at: Self.rootDirectoryURL) else {
-                    Self.moveToTrash(Self.rootDirectoryURL)
-                    return (false, nil)
+                for item in Self.items(in: Self.rootDirectoryURL.deletingLastPathComponent(), withPrefix: Self.stagingRootPrefix) {
+                    Self.moveToTrash(item, as: Self.rootDirectoryURL)
                 }
-                return (true, Self.loadContainerMetadata())
+                guard LinuxRootImage.isInstalled(at: Self.rootDirectoryURL), let metadata = Self.loadContainerMetadata() else {
+                    Self.moveToTrash(Self.rootDirectoryURL)
+                    return nil
+                }
+                return metadata
             }.value
             tearDownInBackground(nil)
 
             guard self.generation == generation else { return }
-            guard existing.valid else {
+            guard let metadata = existing else {
                 installedContainer = nil
                 activeInitMode = nil
                 state = .setup
                 return
             }
 
-            let metadata = existing.metadata ?? ContainerMetadata(
-                name: "linux",
-                distributionID: nil,
-                distributionVariant: nil,
-                installedAt: Date(),
-                initMode: .managed,
-                defaultUser: "root",
-                setupCompleted: true,
-                setup: nil
-            )
             installedContainer = metadata
             if metadata.setupCompleted {
                 await bootInstalledRoot(metadata: metadata, generation: generation)
             } else {
+                beginSetupAttempt()
                 await provision(metadata, generation: generation)
             }
         }
@@ -196,16 +165,16 @@ final class LinuxSystem {
 
     func install(_ request: InstallRequest) {
         let generation = beginOperation()
-        let initialStage: InstallProgress.Stage = switch request.source {
+        pendingInstall = request
+        beginSetupAttempt()
+        switch request.source {
         case let .catalog(release, _):
-            .downloading(bytesWritten: 0, totalBytes: release.compressedBytes)
-        case .remoteArchive:
-            .downloading(bytesWritten: 0, totalBytes: nil)
-        case .localArchive:
-            .extracting
+            appendConsoleStep("Downloading \(release.distribution.displayName) \(release.displayTitle)", generation: generation)
+        case let .remoteArchive(url):
+            appendConsoleStep("Downloading \(url.lastPathComponent)", generation: generation)
+        case let .localArchive(url):
+            appendConsoleStep("Copying \(url.lastPathComponent)", generation: generation)
         }
-        state = .installing(InstallProgress(stage: initialStage))
-        resetConsole()
         let previousRuntime = detachRuntimeForShutdown()
 
         activeTask = Task {
@@ -215,10 +184,18 @@ final class LinuxSystem {
             guard self.generation == generation else { return }
 
             let metadata = Self.makeMetadata(for: request)
+            let stagingRootURL = Self.rootDirectoryURL.deletingLastPathComponent()
+                .appending(path: Self.stagingRootPrefix + UUID().uuidString, directoryHint: .isDirectory)
+            var placedRoot = false
             var temporaryArchiveURL: URL?
             defer {
                 if let temporaryArchiveURL {
                     try? FileManager.default.removeItem(at: temporaryArchiveURL)
+                }
+                if !placedRoot {
+                    Task.detached(priority: .utility) {
+                        try? FileManager.default.removeItem(at: stagingRootURL)
+                    }
                 }
             }
 
@@ -232,37 +209,56 @@ final class LinuxSystem {
                     ) { endpoint in
                         endpoint.url(for: release.artifactPath)
                     }
+                    var candidateFailure: (any Error)?
                     archiveURL = try await DistributionMirrorRouter.firstSuccess(of: candidates) { candidate in
-                        try await RootImageDownloader.download(
-                            from: candidate.url,
-                            expectedBytes: release.compressedBytes,
-                            expectedSHA256: release.sha256,
-                            onProgress: { progress in
-                                Task { @MainActor in
-                                    LinuxSystem.shared.updateInstallProgress(
-                                        .downloading(bytesWritten: progress.bytesWritten, totalBytes: progress.totalBytes),
-                                        generation: generation
-                                    )
+                        if let candidateFailure {
+                            endConsoleProgressLine(generation: generation)
+                            appendConsole(
+                                Data("\u{1B}[1;33mwarning:\u{1B}[0m \(candidateFailure.localizedDescription)\r\n".utf8),
+                                generation: generation
+                            )
+                            appendConsoleStep(
+                                "Retrying from \(candidate.url.host() ?? candidate.url.absoluteString)",
+                                generation: generation
+                            )
+                        }
+                        let epoch = consoleProgressEpoch
+                        do {
+                            return try await RootImageDownloader.download(
+                                from: candidate.url,
+                                expectedBytes: release.compressedBytes,
+                                expectedSHA256: release.sha256,
+                                onProgress: { progress in
+                                    DispatchQueue.main.async {
+                                        MainActor.assumeIsolated {
+                                            LinuxSystem.shared.appendConsoleDownloadProgress(progress, generation: generation, epoch: epoch)
+                                        }
+                                    }
+                                },
+                                onVerifying: {
+                                    DispatchQueue.main.async {
+                                        MainActor.assumeIsolated {
+                                            LinuxSystem.shared.appendConsoleStep("Verifying SHA-256", generation: generation)
+                                        }
+                                    }
                                 }
-                            },
-                            onVerifying: {
-                                Task { @MainActor in
-                                    LinuxSystem.shared.updateInstallProgress(.verifying, generation: generation)
-                                }
-                            }
-                        )
+                            )
+                        } catch {
+                            candidateFailure = error
+                            throw error
+                        }
                     }
                     temporaryArchiveURL = archiveURL
 
                 case let .remoteArchive(url):
+                    let epoch = consoleProgressEpoch
                     archiveURL = try await RootImageDownloader.download(
                         from: url,
                         onProgress: { progress in
-                            Task { @MainActor in
-                                LinuxSystem.shared.updateInstallProgress(
-                                    .downloading(bytesWritten: progress.bytesWritten, totalBytes: progress.totalBytes),
-                                    generation: generation
-                                )
+                            DispatchQueue.main.async {
+                                MainActor.assumeIsolated {
+                                    LinuxSystem.shared.appendConsoleDownloadProgress(progress, generation: generation, epoch: epoch)
+                                }
                             }
                         },
                         onVerifying: {}
@@ -277,59 +273,56 @@ final class LinuxSystem {
                     temporaryArchiveURL = staged
                 }
 
-                try Task.checkCancellation()
                 guard self.generation == generation else { return }
-
-                state = .installing(InstallProgress(stage: .extracting))
-
-                try await Task.detached {
-                    try? FileManager.default.removeItem(at: Self.rootDirectoryURL)
-                    try FileManager.default.createDirectory(at: Self.rootDirectoryURL, withIntermediateDirectories: true)
-                    try Self.saveContainerMetadata(metadata)
-                }.value
-
-                try await LinuxRootImage.archive(at: archiveURL).install(to: Self.rootDirectoryURL)
+                appendConsoleStep("Extracting root filesystem", generation: generation)
+                let epoch = consoleProgressEpoch
+                try await LinuxRootImage.archive(at: archiveURL).install(to: stagingRootURL) { fraction in
+                    DispatchQueue.main.async {
+                        MainActor.assumeIsolated {
+                            LinuxSystem.shared.appendConsoleProgress(fraction: fraction, detail: nil, generation: generation, epoch: epoch)
+                        }
+                    }
+                }
+                guard self.generation == generation else { return }
+                appendConsoleProgress(fraction: 1, detail: nil, generation: generation, epoch: epoch)
+                endConsoleProgressLine(generation: generation)
                 try? FileManager.default.removeItem(at: archiveURL)
                 temporaryArchiveURL = nil
 
                 try await Task.detached {
-                    try Self.saveContainerMetadata(metadata)
+                    try Self.saveContainerMetadata(metadata, root: stagingRootURL)
                 }.value
-
                 guard self.generation == generation else { return }
+                let fm = FileManager.default
+                if fm.fileExists(atPath: Self.rootDirectoryURL.path(percentEncoded: false)) {
+                    try fm.moveItem(at: Self.rootDirectoryURL, to: Self.trashURL(for: Self.rootDirectoryURL))
+                }
+                try fm.moveItem(at: stagingRootURL, to: Self.rootDirectoryURL)
+                placedRoot = true
+                tearDownInBackground(nil)
+                pendingInstall = nil
                 await provision(metadata, generation: generation)
             } catch is CancellationError {
                 guard self.generation == generation else { return }
-                Self.moveToTrash(Self.rootDirectoryURL)
-                tearDownInBackground(nil)
-                installedContainer = nil
-                activeInitMode = nil
+                pendingInstall = nil
+                resetConsole()
                 state = .setup
             } catch {
                 guard self.generation == generation else { return }
-                Self.moveToTrash(Self.rootDirectoryURL)
                 tearDownInBackground(nil)
-                installedContainer = nil
-                activeInitMode = nil
-                state = .failed(error.localizedDescription)
+                endConsoleProgressLine(generation: generation)
+                appendConsole(Data("\u{1B}[1;31merror:\u{1B}[0m \(error.localizedDescription)\r\n".utf8), generation: generation)
+                state = .provisioning(Provisioning(attempt: provisioningAttempt, failure: error.localizedDescription))
             }
         }
     }
 
-    func retryProvisioning() {
-        guard case let .provisioning(provisioning) = state, provisioning.failure != nil,
-              let metadata = installedContainer
-        else {
-            return
-        }
-        let generation = beginOperation()
-        let previousRuntime = detachRuntimeForShutdown()
-        activeTask = Task {
-            if let previousRuntime {
-                await shutDownRuntime(previousRuntime)
-            }
-            guard self.generation == generation else { return }
-            await provision(metadata, generation: generation)
+    func retrySetup() {
+        guard case let .provisioning(provisioning) = state, provisioning.failure != nil else { return }
+        if let pendingInstall {
+            install(pendingInstall)
+        } else {
+            restart()
         }
     }
 
@@ -350,9 +343,13 @@ final class LinuxSystem {
             return
         }
         let generation = beginOperation()
-        resetConsole()
         installedContainer = metadata
-        state = .booting
+        if metadata.setupCompleted {
+            resetConsole()
+            state = .booting
+        } else {
+            beginSetupAttempt()
+        }
         let previousRuntime = detachRuntimeForShutdown()
         activeTask = Task {
             if let previousRuntime {
@@ -369,6 +366,7 @@ final class LinuxSystem {
 
     func reset() {
         _ = beginOperation()
+        pendingInstall = nil
         let previousRuntime = detachRuntimeForShutdown()
         Self.moveToTrash(Self.rootDirectoryURL)
         Self.moveToTrash(Self.downloadStagingDirectoryURL)
@@ -397,8 +395,18 @@ final class LinuxSystem {
     func resizeSetupTerminal(columns: UInt16, rows: UInt16) {
         let size = LinuxTerminal.Size(columns: max(columns, 1), rows: max(rows, 1))
         guard size != setupTerminalSize else { return }
+        let previousColumns = setupTerminalSize.columns
         setupTerminalSize = size
         setupTerminal?.resize(size)
+        guard let openConsoleProgress, size.columns != previousColumns else { return }
+        let cursorRow = openConsoleProgress.lineLength / Int(size.columns)
+        if cursorRow > 0 {
+            let clear = Data(("\r\u{1B}[K" + String(repeating: "\u{1B}[A\r\u{1B}[K", count: cursorRow)).utf8)
+            for listener in consoleListeners.values {
+                listener(clear)
+            }
+        }
+        renderConsoleProgress()
     }
 
     func waitUntilRunning() async throws {
@@ -465,14 +473,68 @@ final class LinuxSystem {
         return generation
     }
 
-    private func updateInstallProgress(_ stage: InstallProgress.Stage, generation: UInt64) {
-        guard self.generation == generation, case .installing = state else { return }
-        state = .installing(InstallProgress(stage: stage))
+    private func beginSetupAttempt() {
+        provisioningAttempt += 1
+        resetConsole()
+        state = .provisioning(Provisioning(attempt: provisioningAttempt))
     }
 
     private func resetConsole() {
         consoleChunks.removeAll()
         consoleListeners.removeAll()
+        openConsoleProgress = nil
+        consoleProgressEpoch &+= 1
+    }
+
+    private func appendConsoleStep(_ title: String, generation: UInt64) {
+        endConsoleProgressLine(generation: generation)
+        appendConsole(Data("\u{1B}[1m==> \(title)\u{1B}[0m\r\n".utf8), generation: generation)
+    }
+
+    private func appendConsoleDownloadProgress(_ progress: RootImageDownloadProgress, generation: UInt64, epoch: UInt64) {
+        var detail = progress.bytesWritten.formatted(Self.consoleByteCountStyle)
+        if let totalBytes = progress.totalBytes, totalBytes > 0 {
+            detail += " / \(totalBytes.formatted(Self.consoleByteCountStyle))"
+        }
+        appendConsoleProgress(fraction: progress.fraction, detail: detail, generation: generation, epoch: epoch)
+    }
+
+    private func appendConsoleProgress(fraction: Double?, detail: String?, generation: UInt64, epoch: UInt64) {
+        guard self.generation == generation, consoleProgressEpoch == epoch else { return }
+        var progress = openConsoleProgress ?? ConsoleProgress()
+        progress.fraction = fraction
+        progress.detail = detail
+        openConsoleProgress = progress
+        renderConsoleProgress()
+    }
+
+    private func renderConsoleProgress() {
+        guard var progress = openConsoleProgress else { return }
+        let line = ConsoleProgressLine.render(
+            fraction: progress.fraction,
+            detail: progress.detail,
+            width: Int(setupTerminalSize.columns) - 1
+        )
+        let chunk = Data("\r\u{1B}[K\(line)".utf8)
+        if let chunkIndex = progress.chunkIndex {
+            consoleChunks[chunkIndex] = chunk
+        } else {
+            progress.chunkIndex = consoleChunks.count
+            consoleChunks.append(chunk)
+        }
+        progress.lineLength = line.count
+        openConsoleProgress = progress
+        for listener in consoleListeners.values {
+            listener(chunk)
+        }
+    }
+
+    private func endConsoleProgressLine(generation: UInt64) {
+        guard self.generation == generation else { return }
+        consoleProgressEpoch &+= 1
+        guard openConsoleProgress != nil else { return }
+        openConsoleProgress = nil
+        appendConsole(Data("\r\n".utf8), generation: generation)
     }
 
     private func cancelRunningWaiters() {
@@ -651,7 +713,18 @@ final class LinuxSystem {
                 await waitForBootHalt(boot)
             }
             guard self.generation == generation else { throw CancellationError() }
-            guard halted || bootHalt != nil else { return }
+            if !halted, bootHalt == nil {
+                if metadata.sshPort != nil, metadata.initMode == .managed {
+                    _ = try? await bootedRuntime.spawn(LinuxProcess.Configuration(
+                        executablePath: "/bin/sh",
+                        arguments: ["-c", "install -d -m 0755 /run/sshd && ssh-keygen -A >/dev/null 2>&1 || true; exec \"$(command -v sshd)\""]
+                    ))
+                    guard self.generation == generation else { throw CancellationError() }
+                }
+                if bootHalt == nil {
+                    return
+                }
+            }
             guard bootHalt == .reboot, reboots < Self.maxBootReboots else { throw StartupError.halted }
             reboots += 1
             await shutDownDetachedRuntime()
@@ -685,12 +758,8 @@ final class LinuxSystem {
     }
 
     private func provision(_ metadata: ContainerMetadata, generation: UInt64) async {
-        provisioningAttempt += 1
-        let attempt = provisioningAttempt
-        resetConsole()
         haltedDuringProvisioning = false
         installedContainer = metadata
-        state = .provisioning(Provisioning(attempt: attempt))
         var metadata = metadata
         do {
             var setupMode: ContainerInitMode = metadata.distribution?.requiresSystemInit == true ? .system : .managed
@@ -700,11 +769,18 @@ final class LinuxSystem {
                 setupMode = .system
                 (runtime, release) = try await bootForProvisioning(metadata, initMode: setupMode, generation: generation)
             }
-            if metadata.distributionID == nil, let detected = release?.distribution {
-                metadata.distributionID = detected.rawValue
+            if metadata.distributionID == nil {
+                if let detected = release?.distribution {
+                    metadata.distributionID = detected.rawValue
+                } else {
+                    metadata.sshPort = nil
+                }
             }
-            if metadata.distribution?.requiresSystemInit == true {
-                metadata.initMode = .system
+            if metadata.systemInit == nil {
+                metadata.systemInit = await Self.systemInit(in: runtime.fileSystem, distribution: metadata.distribution)
+            }
+            if let requiredInitMode = metadata.systemInit?.requiredInitMode {
+                metadata.initMode = requiredInitMode
             }
 
             let terminal = try runtime.makeTerminal(size: setupTerminalSize)
@@ -718,7 +794,8 @@ final class LinuxSystem {
                 hostname: metadata.name,
                 user: metadata.defaultUser,
                 password: metadata.setup?.password,
-                mirrorID: metadata.setup?.mirrorID
+                mirrorID: metadata.setup?.mirrorID,
+                software: metadata.setup?.software ?? ContainerSoftware()
             )
             let termination: LinuxProcess.Termination
             do {
@@ -779,7 +856,7 @@ final class LinuxSystem {
             let message = haltedDuringProvisioning && !(error is StartupError)
                 ? StartupError.halted.localizedDescription
                 : error.localizedDescription
-            state = .provisioning(Provisioning(attempt: attempt, failure: message))
+            state = .provisioning(Provisioning(attempt: provisioningAttempt, failure: message))
         }
     }
 
@@ -914,8 +991,10 @@ final class LinuxSystem {
         URL.applicationSupportDirectory.appending(path: "Root", directoryHint: .isDirectory)
     }
 
-    private nonisolated static var containerMetadataURL: URL {
-        rootDirectoryURL.appending(path: "swipterm-machine.json")
+    private nonisolated static let containerMetadataName = "swipterm-machine.json"
+
+    private nonisolated static var stagingRootPrefix: String {
+        ".\(rootDirectoryURL.lastPathComponent).installing."
     }
 
     private nonisolated static var downloadStagingDirectoryURL: URL {
@@ -923,13 +1002,16 @@ final class LinuxSystem {
     }
 
     private nonisolated static func loadContainerMetadata() -> ContainerMetadata? {
-        guard let data = try? Data(contentsOf: containerMetadataURL) else { return nil }
+        guard let data = try? Data(contentsOf: rootDirectoryURL.appending(path: containerMetadataName)) else { return nil }
         return try? JSONDecoder().decode(ContainerMetadata.self, from: data)
     }
 
-    private nonisolated static func saveContainerMetadata(_ metadata: ContainerMetadata) throws {
+    private nonisolated static func saveContainerMetadata(_ metadata: ContainerMetadata, root: URL = rootDirectoryURL) throws {
         let data = try JSONEncoder().encode(metadata)
-        try data.write(to: containerMetadataURL, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+        try data.write(
+            to: root.appending(path: containerMetadataName),
+            options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication]
+        )
     }
 
     private nonisolated static func makeMetadata(for request: InstallRequest) -> ContainerMetadata {
@@ -943,11 +1025,13 @@ final class LinuxSystem {
             name: request.containerName,
             distributionID: release?.distribution.rawValue,
             distributionVariant: release?.variant,
+            systemInit: release.flatMap { $0.distribution.systemInit(variant: $0.variant) },
             installedAt: Date(),
             initMode: request.initMode,
             defaultUser: request.user,
             setupCompleted: false,
-            setup: ContainerSetup(mirrorID: mirrorID, password: request.password)
+            setup: ContainerSetup(mirrorID: mirrorID, password: request.password, software: request.software),
+            sshPort: request.software.ssh?.port
         )
     }
 
@@ -962,25 +1046,50 @@ final class LinuxSystem {
         return destination
     }
 
-    private nonisolated static func moveToTrash(_ url: URL) {
+    private nonisolated static func trashURL(for owner: URL) -> URL {
+        owner.deletingLastPathComponent()
+            .appending(path: ".\(owner.lastPathComponent).trash.\(UUID().uuidString)", directoryHint: .isDirectory)
+    }
+
+    private nonisolated static func moveToTrash(_ url: URL, as owner: URL? = nil) {
         let fm = FileManager.default
         guard fm.fileExists(atPath: url.path(percentEncoded: false)) else { return }
-        let trash = url.deletingLastPathComponent()
-            .appending(path: ".\(url.lastPathComponent).trash.\(UUID().uuidString)", directoryHint: .isDirectory)
-        if (try? fm.moveItem(at: url, to: trash)) == nil {
+        if (try? fm.moveItem(at: url, to: trashURL(for: owner ?? url))) == nil {
             try? fm.removeItem(at: url)
         }
     }
 
     private nonisolated static func emptyTrash() {
-        let fm = FileManager.default
         for url in [rootDirectoryURL, downloadStagingDirectoryURL] {
-            let prefix = ".\(url.lastPathComponent)."
-            let items = (try? fm.contentsOfDirectory(at: url.deletingLastPathComponent(), includingPropertiesForKeys: nil)) ?? []
-            for item in items where item.lastPathComponent.hasPrefix(prefix) {
-                try? fm.removeItem(at: item)
+            for item in items(in: url.deletingLastPathComponent(), withPrefix: ".\(url.lastPathComponent).trash.") {
+                try? FileManager.default.removeItem(at: item)
             }
         }
+    }
+
+    private nonisolated static func items(in directory: URL, withPrefix prefix: String) -> [URL] {
+        let items = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
+        return items.filter { $0.lastPathComponent.hasPrefix(prefix) }
+    }
+
+    private nonisolated static func systemInit(in fileSystem: LinuxFileSystem, distribution: LinuxDistribution?) async -> SystemInit {
+        guard let initInode = try? await fileSystem.stat("/sbin/init").inode else { return .absent }
+        for path in ["/usr/lib/systemd/systemd", "/lib/systemd/systemd"] {
+            if (try? await fileSystem.stat(path).inode) == initInode {
+                return .systemd
+            }
+        }
+        for path in ["/bin/busybox", "/usr/bin/busybox"] {
+            if (try? await fileSystem.stat(path).inode) == initInode {
+                for openrc in ["/sbin/openrc", "/usr/bin/openrc"] {
+                    if (try? await fileSystem.stat(openrc)) != nil {
+                        return .other
+                    }
+                }
+                return .absent
+            }
+        }
+        return distribution == nil ? .absent : .other
     }
 
     private nonisolated static func prepareGuestEnvironment(_ runtime: LinuxRuntime, hostname: String?) async throws {

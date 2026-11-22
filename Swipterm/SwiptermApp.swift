@@ -18,14 +18,10 @@ private struct ContentView: View {
             switch system.state {
             case .checking:
                 Color.clear
-            case .setup, .installing, .provisioning:
+            case .setup, .provisioning:
                 NavigationStack {
                     Group {
                         switch system.state {
-                        case let .installing(progress):
-                            SetupProgressView(progress: progress) {
-                                system.reset()
-                            }
                         case let .provisioning(provisioning):
                             ProvisioningView(provisioning: provisioning)
                                 .id(provisioning.attempt)
@@ -33,8 +29,7 @@ private struct ContentView: View {
                             SetupView()
                         }
                     }
-                    .navigationTitle("Setup")
-                    .navigationBarTitleDisplayMode(.inline)
+                    .navigationTitle("Swipterm Setup")
                 }
             case .booting, .running:
                 TerminalContainerView(sessionManager: sessionManager)

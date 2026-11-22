@@ -25,13 +25,7 @@ enum AppDatabase {
 
     private static func load() throws -> DatabaseQueue {
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        var database = try DatabaseQueue(path: url.path)
-        if try database.read(migrator.hasBeenSuperseded) {
-            logger.error("reset the data of a newer Swipterm")
-            try database.close()
-            try remove()
-            database = try DatabaseQueue(path: url.path)
-        }
+        let database = try DatabaseQueue(path: url.path)
         try migrator.migrate(database)
         return database
     }
@@ -44,6 +38,7 @@ enum AppDatabase {
 
     private static let migrator: DatabaseMigrator = {
         var migrator = DatabaseMigrator()
+        migrator.eraseDatabaseOnSchemaChange = true
         migrator.registerMigration("0.1.0", migrate: createTables)
         return migrator
     }()

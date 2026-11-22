@@ -103,35 +103,32 @@ nonisolated enum LinuxDistribution: String, CaseIterable, Identifiable, Codable,
         self == .nixos
     }
 
-    func nativeInitSystem(variant: String?) -> NativeInitSystem? {
+    func systemInit(variant: String?) -> SystemInit? {
         switch self {
-        case .alma, .arch, .centos, .debian, .fedora, .kali, .nixos, .openEuler, .openSUSE, .oracle, .rocky, .ubuntu:
+        case .alma, .arch, .centos, .debian, .fedora, .kali, .openEuler, .openSUSE, .oracle, .rocky, .ubuntu:
             .systemd
-        case .alpine: .openRC
-        case .devuan: .sysVinit
-        case .void: .runit
+        case .alpine, .devuan, .nixos, .void:
+            .other
         case .gentoo:
             switch variant {
             case "systemd": .systemd
-            case "openrc": .openRC
+            case "openrc": .other
             default: nil
             }
         }
     }
 }
 
-nonisolated enum NativeInitSystem: Sendable {
+nonisolated enum SystemInit: String, Codable, Sendable {
     case systemd
-    case openRC
-    case runit
-    case sysVinit
+    case other
+    case absent
 
-    var displayName: String {
+    var requiredInitMode: ContainerInitMode? {
         switch self {
-        case .systemd: "Systemd"
-        case .openRC: "OpenRC"
-        case .runit: "runit"
-        case .sysVinit: "SysVinit"
+        case .systemd: nil
+        case .other: .system
+        case .absent: .managed
         }
     }
 }
@@ -158,51 +155,24 @@ nonisolated struct LinuxReleaseImage: Identifiable, Hashable, Codable, Sendable 
 nonisolated struct ContainerSetup: Codable, Equatable, Sendable {
     var mirrorID: String?
     var password: String?
+    var software: ContainerSoftware?
 }
 
 nonisolated struct ContainerMetadata: Codable, Equatable, Sendable {
+    var schemaVersion = 2
     let name: String
     var distributionID: String?
     let distributionVariant: String?
+    var systemInit: SystemInit?
     let installedAt: Date
     var initMode: ContainerInitMode
     var defaultUser: String
     var setupCompleted: Bool
     var setup: ContainerSetup?
+    var sshPort: Int?
 
     var distribution: LinuxDistribution? {
         distributionID.flatMap(LinuxDistribution.init(rawValue:))
-    }
-
-    var nativeInitSystem: NativeInitSystem? {
-        distribution?.nativeInitSystem(variant: distributionVariant)
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case name
-        case distributionID
-        case distributionVariant
-        case installedAt
-        case initMode
-        case defaultUser
-        case setupCompleted
-        case setup
-    }
-}
-
-extension ContainerMetadata {
-    nonisolated init(from decoder: any Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        name = try container.decode(String.self, forKey: .name)
-        distributionID = try container.decodeIfPresent(String.self, forKey: .distributionID)
-        distributionVariant = try container.decodeIfPresent(String.self, forKey: .distributionVariant)
-        installedAt = try container.decode(Date.self, forKey: .installedAt)
-        let requiresSystemInit = distributionID.flatMap(LinuxDistribution.init(rawValue:))?.requiresSystemInit ?? false
-        initMode = try container.decodeIfPresent(ContainerInitMode.self, forKey: .initMode)
-            ?? (requiresSystemInit ? .system : .managed)
-        defaultUser = try container.decodeIfPresent(String.self, forKey: .defaultUser) ?? "root"
-        setupCompleted = try container.decodeIfPresent(Bool.self, forKey: .setupCompleted) ?? true
-        setup = try container.decodeIfPresent(ContainerSetup.self, forKey: .setup)
     }
 }
 

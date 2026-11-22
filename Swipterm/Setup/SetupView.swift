@@ -33,6 +33,8 @@ struct SetupView: View {
     @State private var lastAutoUsername = ""
     @State private var password = ""
     @State private var localHostName = LocalHostName()
+    @State private var software = ContainerSoftware()
+    @State private var ssh = SetupSSH()
     @State private var errorMessage: String?
     @FocusState private var focusedField: Field?
 
@@ -98,17 +100,16 @@ struct SetupView: View {
                 }
             }
 
-            Section("Configuration") {
-                if let distribution = selectedDistribution {
-                    SetupMirrorPicker(distribution: distribution, mirrorID: clearingFocus($mirrorID))
+            let mirrors = availableMirrors
+            if mirrors.count > 1 || showsStartupModePicker {
+                Section("Configuration") {
+                    if mirrors.count > 1 {
+                        SetupMirrorPicker(mirrors: mirrors, mirrorID: clearingFocus($mirrorID))
+                    }
+                    if showsStartupModePicker {
+                        StartupModePicker(selection: clearingFocus($initMode))
+                    }
                 }
-                StartupModePicker(selection: Binding {
-                    effectiveInitMode
-                } set: { newValue in
-                    focusedField = nil
-                    initMode = newValue
-                }, nativeInitSystem: nativeInitSystem)
-                    .disabled(requiresSystemInit)
             }
 
             Section {
@@ -123,13 +124,13 @@ struct SetupView: View {
                             .textInputAutocapitalization(.never)
                             .textContentType(.username)
                     }
-                    LabeledContent("Password") {
-                        SecureField("Password", text: $password, prompt: Text("Optional"))
-                            .focused($focusedField, equals: .password)
-                            .labelsHidden()
-                            .multilineTextAlignment(.trailing)
-                            .textContentType(.newPassword)
-                    }
+                }
+                LabeledContent("Password") {
+                    SecureField("Password", text: $password, prompt: Text("Optional"))
+                        .focused($focusedField, equals: .password)
+                        .labelsHidden()
+                        .multilineTextAlignment(.trailing)
+                        .textContentType(.newPassword)
                 }
             } header: {
                 Text("User")
@@ -140,11 +141,51 @@ struct SetupView: View {
                 }
             }
 
+            Section("Software") {
+                if let distribution = selectedDistribution {
+                    Picker("Shell", selection: clearingFocus(Binding {
+                        software.shell ?? distribution.defaultShell
+                    } set: { shell in
+                        software.shell = shell
+                    })) {
+                        ForEach(distribution.shells(for: selectedRelease)) { shell in
+                            Text(verbatim: shell.displayName)
+                                .tag(shell)
+                        }
+                    }
+                }
+                NavigationLink {
+                    SetupSSHView(ssh: $ssh)
+                } label: {
+                    LabeledContent {
+                        Text(verbatim: ssh.isEnabled ? ssh.port : String(localized: "Off"))
+                    } label: {
+                        Text(verbatim: "SSH")
+                    }
+                }
+                NavigationLink {
+                    SetupDeveloperToolsView(software: $software)
+                } label: {
+                    LabeledContent(
+                        "Developer Tools",
+                        value: Self.summary(DeveloperTool.allCases.filter(software.developerTools.contains).map(\.shortName))
+                    )
+                }
+                NavigationLink {
+                    SetupAgentsView(software: $software)
+                } label: {
+                    LabeledContent(
+                        "Agents",
+                        value: Self.summary(CodingAgent.allCases.filter(software.agents.contains).map(\.shortName))
+                    )
+                }
+            }
+
             Section {
                 Button {
                     startInstall()
                 } label: {
-                    Text("Create Container")
+                    Text("Create")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
@@ -214,6 +255,13 @@ struct SetupView: View {
         .onChange(of: catalog.loadState) {
             syncSelectedRelease()
         }
+        .onChange(of: selectedRelease) {
+            if let shell = software.shell, let distribution = selectedDistribution,
+               !distribution.shells(for: selectedRelease).contains(shell)
+            {
+                software.shell = nil
+            }
+        }
         .onChange(of: mirrorID) {
             Task { await catalog.refresh(mirror: selectedMirror) }
         }
@@ -240,16 +288,22 @@ struct SetupView: View {
         DistributionMirror.all.first { $0.id == mirrorID }
     }
 
-    private var requiresSystemInit: Bool {
-        selectedDistribution?.requiresSystemInit == true
+    private var availableMirrors: [DistributionMirror] {
+        guard let distribution = selectedDistribution else { return [] }
+        return DistributionMirror.all.filter { $0.serves(distribution) }
+    }
+
+    private var selectedSystemInit: SystemInit? {
+        selectedDistribution?.systemInit(variant: selectedRelease?.variant)
+    }
+
+    private var showsStartupModePicker: Bool {
+        selectedSystemInit == .systemd
     }
 
     private var effectiveInitMode: ContainerInitMode {
-        requiresSystemInit ? .system : initMode
-    }
-
-    private var nativeInitSystem: NativeInitSystem? {
-        selectedDistribution?.nativeInitSystem(variant: selectedRelease?.variant)
+        guard let selectedSystemInit else { return .managed }
+        return selectedSystemInit.requiredInitMode ?? initMode
     }
 
     private var remoteArchiveURL: URL? {
@@ -330,17 +384,41 @@ struct SetupView: View {
             installSource = .remoteArchive(url)
         }
         guard usesRootUser || Self.isValidUsername(username) else { return }
-        if !usesRootUser, password.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) {
+        if password.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) {
             errorMessage = String(localized: "The password can’t contain line breaks or control characters.")
             return
+        }
+        var software = software
+        if software.shell == selectedDistribution?.defaultShell || selectedDistribution == nil {
+            software.shell = nil
+        }
+        if ssh.isEnabled {
+            guard let port = ssh.validPort else {
+                errorMessage = String(localized: "Use a port from \(SSHServer.ports.lowerBound) to \(SSHServer.ports.upperBound).")
+                return
+            }
+            if !ssh.authentication.allowsPublicKey, password.isEmpty {
+                errorMessage = String(localized: "Set a password or allow public key authentication to sign in over SSH.")
+                return
+            }
+            software.ssh = SSHServer(
+                port: port,
+                authentication: ssh.authentication,
+                authorizedKeys: ssh.authentication.allowsPublicKey ? ssh.authorizedKeys : ""
+            )
         }
         system.install(LinuxSystem.InstallRequest(
             source: installSource,
             containerName: Self.sanitizedContainerName(containerName),
             initMode: effectiveInitMode,
             user: usesRootUser ? "root" : username,
-            password: usesRootUser || password.isEmpty ? nil : password
+            password: password.isEmpty ? nil : password,
+            software: software
         ))
+    }
+
+    private static func summary(_ names: [String]) -> String {
+        names.isEmpty ? String(localized: "None") : names.formatted(.list(type: .and, width: .narrow))
     }
 
     private static var supportedArchiveTypes: [UTType] {
@@ -443,64 +521,28 @@ private struct SetupReleasePicker: View {
 }
 
 private struct SetupMirrorPicker: View {
-    let distribution: LinuxDistribution
+    let mirrors: [DistributionMirror]
     @Binding var mirrorID: String
 
     var body: some View {
-        let mirrors = DistributionMirror.all.filter { $0.serves(distribution) }
-        if mirrors.count > 1 {
-            Picker("Mirror", selection: Binding {
-                mirrors.contains { $0.id == mirrorID } ? mirrorID : ""
-            } set: { newValue in
-                mirrorID = newValue
-            }) {
-                Text("Automatic")
-                    .tag("")
-                ForEach(MirrorRegion.allCases, id: \.self) { region in
-                    let regionMirrors = mirrors.filter { $0.region == region }
-                    if !regionMirrors.isEmpty {
-                        Section {
-                            ForEach(regionMirrors) { mirror in
-                                Text(verbatim: mirror.name)
-                                    .tag(mirror.id)
-                            }
-                        } header: {
-                            Text(region.displayName)
+        Picker("Mirror", selection: Binding {
+            mirrors.contains { $0.id == mirrorID } ? mirrorID : ""
+        } set: { newValue in
+            mirrorID = newValue
+        }) {
+            Text("Automatic")
+                .tag("")
+            ForEach(MirrorRegion.allCases, id: \.self) { region in
+                let regionMirrors = mirrors.filter { $0.region == region }
+                if !regionMirrors.isEmpty {
+                    Section {
+                        ForEach(regionMirrors) { mirror in
+                            Text(verbatim: mirror.name)
+                                .tag(mirror.id)
                         }
+                    } header: {
+                        Text(region.displayName)
                     }
-                }
-            }
-        }
-    }
-}
-
-struct SetupProgressView: View {
-    let progress: LinuxSystem.InstallProgress
-    let onCancel: (() -> Void)?
-
-    var body: some View {
-        VStack(spacing: 12) {
-            ProgressView()
-                .controlSize(.large)
-
-            Text(progress.stageDescription)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-
-            if let detail = progress.byteDetail {
-                Text(detail)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-            }
-        }
-        .padding(32)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(uiColor: .systemGroupedBackground))
-        .toolbar {
-            if let onCancel, progress.canCancel {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", role: .cancel, action: onCancel)
                 }
             }
         }

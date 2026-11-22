@@ -89,3 +89,26 @@ nonisolated enum ConsoleText {
         }
     }
 }
+
+nonisolated enum ConsoleProgressLine {
+    private static let barWidths = 10 ... 40
+
+    static func render(fraction: Double?, detail: String?, width: Int) -> String {
+        let percent = fraction.map { String(format: "%3ld%%", Int($0 * 100)) }
+        let text = [percent, detail].compactMap(\.self).joined(separator: " ")
+        if let fraction {
+            let barWidth = min(width - text.count - 3, barWidths.upperBound)
+            if barWidth >= barWidths.lowerBound {
+                let filled = Int(Double(barWidth) * fraction)
+                return "[" + String(repeating: "#", count: filled) + String(repeating: "-", count: barWidth - filled) + "] " + text
+            }
+        }
+        if text.count <= width {
+            return text
+        }
+        if let percent, percent.count <= width {
+            return percent
+        }
+        return String(text.prefix(width))
+    }
+}

@@ -29,6 +29,34 @@
         }
       }
     },
+    "Agents": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ایجنت‌ها"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Агенты"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "智能体"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "代理程式"
+          }
+        }
+      }
+    },
     "All files and installed packages inside the container will be erased and you will return to setup.": {
       "localizations": {
         "fa": {
@@ -165,6 +193,34 @@
           "stringUnit": {
             "state": "translated",
             "value": "亞太地區"
+          }
+        }
+      }
+    },
+    "Authentication": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "احراز هویت"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Аутентификация"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "身份验证"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "身分驗證"
           }
         }
       }
@@ -421,6 +477,34 @@
         }
       }
     },
+    "Configured": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "پیکربندی‌شده"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Настроен"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已配置"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已配置"
+          }
+        }
+      }
+    },
     "Container": {
       "localizations": {
         "fa": {
@@ -505,30 +589,30 @@
         }
       }
     },
-    "Create Container": {
+    "Create": {
       "localizations": {
         "fa": {
           "stringUnit": {
             "state": "translated",
-            "value": "ایجاد کانتینر"
+            "value": "ایجاد"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Создать контейнер"
+            "value": "Создать"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "创建容器"
+            "value": "创建"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "建立容器"
+            "value": "建立"
           }
         }
       }
@@ -645,6 +729,62 @@
         }
       }
     },
+    "Delete": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "حذف"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удалить"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刪除"
+          }
+        }
+      }
+    },
+    "Developer Tools": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ابزارهای توسعه‌دهنده"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Инструменты разработчика"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开发者工具"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開發者工具"
+          }
+        }
+      }
+    },
     "Done": {
       "localizations": {
         "fa": {
@@ -725,34 +865,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "下載的歸檔為空。"
-          }
-        }
-      }
-    },
-    "Downloading…": {
-      "localizations": {
-        "fa": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "در حال دانلود…"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Загрузка…"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在下载…"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在下載…"
           }
         }
       }
@@ -1233,34 +1345,6 @@
         }
       }
     },
-    "Installing…": {
-      "localizations": {
-        "fa": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "در حال نصب…"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Установка…"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在安装…"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在安裝…"
-          }
-        }
-      }
-    },
     "Keep Screen Awake": {
       "localizations": {
         "fa": {
@@ -1485,6 +1569,34 @@
         }
       }
     },
+    "Method": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "روش"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Способ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "方式"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "方式"
+          }
+        }
+      }
+    },
     "Mirror": {
       "localizations": {
         "fa": {
@@ -1625,6 +1737,34 @@
         }
       }
     },
+    "None": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "هیچ‌کدام"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нет"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無"
+          }
+        }
+      }
+    },
     "North America": {
       "localizations": {
         "fa": {
@@ -1649,6 +1789,62 @@
           "stringUnit": {
             "state": "translated",
             "value": "北美洲"
+          }
+        }
+      }
+    },
+    "Not Configured": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "پیکربندی‌نشده"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не настроен"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未配置"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未配置"
+          }
+        }
+      }
+    },
+    "Off": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "خاموش"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выкл."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "關閉"
           }
         }
       }
@@ -1765,6 +1961,62 @@
         }
       }
     },
+    "Password & Public Key": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "رمز عبور و کلید عمومی"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пароль и открытый ключ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "密码与公钥"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "密碼與公鑰"
+          }
+        }
+      }
+    },
+    "Port": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "پورت"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Порт"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "端口"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "連接埠"
+          }
+        }
+      }
+    },
     "Previous Session": {
       "localizations": {
         "fa": {
@@ -1789,6 +2041,34 @@
           "stringUnit": {
             "state": "translated",
             "value": "上一個工作階段"
+          }
+        }
+      }
+    },
+    "Public Key": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "کلید عمومی"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открытый ключ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "公钥"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "公鑰"
           }
         }
       }
@@ -1989,6 +2269,34 @@
         }
       }
     },
+    "Save": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ذخیره"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сохранить"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "存储"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "儲存"
+          }
+        }
+      }
+    },
     "Session %lld": {
       "localizations": {
         "fa": {
@@ -2101,6 +2409,34 @@
         }
       }
     },
+    "Set a password or allow public key authentication to sign in over SSH.": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "برای ورود از طریق SSH، یک رمز عبور تعیین کنید یا احراز هویت با کلید عمومی را مجاز کنید."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Чтобы входить по SSH, задайте пароль или разрешите аутентификацию по открытому ключу."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "若要通过 SSH 登录，请设置密码或允许公钥身份验证。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "若要透過 SSH 登入，請設定密碼或允許公鑰身分驗證。"
+          }
+        }
+      }
+    },
     "Settings": {
       "localizations": {
         "fa": {
@@ -2129,30 +2465,30 @@
         }
       }
     },
-    "Setup": {
+    "Shell": {
       "localizations": {
         "fa": {
           "stringUnit": {
             "state": "translated",
-            "value": "راه‌اندازی"
+            "value": "شل"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Настройка"
+            "value": "Оболочка"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "初始化"
+            "value": "Shell"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "初始化"
+            "value": "Shell"
           }
         }
       }
@@ -2181,6 +2517,34 @@
           "stringUnit": {
             "state": "translated",
             "value": "大小"
+          }
+        }
+      }
+    },
+    "Software": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "نرم‌افزار"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Программное обеспечение"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "软件"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "軟體"
           }
         }
       }
@@ -2241,6 +2605,34 @@
         }
       }
     },
+    "Swipterm Setup": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "راه‌اندازی Swipterm"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Настройка Swipterm"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swipterm 初始化"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swipterm 初始化"
+          }
+        }
+      }
+    },
     "System Halted": {
       "localizations": {
         "fa": {
@@ -2265,34 +2657,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "系統已停機"
-          }
-        }
-      }
-    },
-    "System Init": {
-      "localizations": {
-        "fa": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Init سیستم"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Системный init"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "系统 Init"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "系統 Init"
           }
         }
       }
@@ -2521,6 +2885,34 @@
         }
       }
     },
+    "Use a port from %lld to %lld.": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "از پورتی بین %lld تا %lld استفاده کنید."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Используйте порт от %lld до %lld."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请使用 %lld 到 %lld 之间的端口。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請使用 %lld 到 %lld 之間的連接埠。"
+          }
+        }
+      }
+    },
     "Use up to 32 lowercase letters, digits, “_” and “-”, starting with a letter or “_”.": {
       "localizations": {
         "fa": {
@@ -2601,34 +2993,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "使用者名稱"
-          }
-        }
-      }
-    },
-    "Verifying…": {
-      "localizations": {
-        "fa": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "در حال بررسی…"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Проверка…"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在验证…"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在驗證…"
           }
         }
       }
