@@ -1,0 +1,68 @@
+import Foundation
+import SwiptermKit
+import UIKit
+
+nonisolated struct ClipboardDevice: LinuxCharacterDevice {
+    func open(access: LinuxFileAccess) throws -> any LinuxCharacterDeviceFile {
+        let initialData = switch access {
+        case .readOnly, .readWrite:
+            Data((UIPasteboard.general.string ?? "").utf8)
+        case .writeOnly:
+            Data()
+        }
+        return ClipboardDeviceFile(access: access, initialData: initialData)
+    }
+}
+
+private final nonisolated class ClipboardDeviceFile: LinuxCharacterDeviceFile, @unchecked Sendable {
+    private static let maxBufferSize = 8 * 1024 * 1024
+
+    private let access: LinuxFileAccess
+    private let lock = NSLock()
+    private let readBuffer: Data
+    private var readOffset = 0
+    private var writeBuffer = Data()
+    private var didWrite = false
+
+    init(access: LinuxFileAccess, initialData: Data) {
+        self.access = access
+        readBuffer = initialData
+    }
+
+    func read(maxLength: Int) throws -> Data {
+        guard access != .writeOnly else {
+            throw LinuxError.EBADF
+        }
+        return lock.withLock {
+            guard readOffset < readBuffer.count, maxLength > 0 else {
+                return Data()
+            }
+            let end = min(readOffset + maxLength, readBuffer.count)
+            defer { readOffset = end }
+            return readBuffer.subdata(in: readOffset ..< end)
+        }
+    }
+
+    func write(_ data: Data) throws -> Int {
+        guard access != .readOnly else {
+            throw LinuxError.EBADF
+        }
+        try lock.withLock {
+            guard writeBuffer.count + data.count <= Self.maxBufferSize else {
+                throw LinuxError.ENOMEM
+            }
+            writeBuffer.append(data)
+            didWrite = true
+        }
+        return data.count
+    }
+
+    func close() {
+        let written: Data? = lock.withLock {
+            didWrite ? writeBuffer : nil
+        }
+        if let written {
+            UIPasteboard.general.string = String(decoding: written, as: UTF8.self)
+        }
+    }
+}

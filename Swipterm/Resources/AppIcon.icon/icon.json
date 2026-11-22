@@ -1,0 +1,76 @@
+{
+  "fill": {
+    "solid": "srgb:0.92549,0.93725,0.94510,1.00000"
+  },
+  "fill-specializations": [
+    {
+      "appearance": "dark",
+      "value": {
+        "solid": "srgb:0.05098,0.07451,0.09020,1.00000"
+      }
+    }
+  ],
+  "groups": [
+    {
+      "layers": [
+        {
+          "fill-specializations": [
+            {
+              "appearance": "dark",
+              "value": {
+                "solid": "srgb:0.81176,0.84706,0.86275,1.00000"
+              }
+            }
+          ],
+          "glass": false,
+          "image-name": "prompt.svg",
+          "name": "prompt"
+        },
+        {
+          "glass": false,
+          "image-name": "dots.svg",
+          "name": "dots"
+        },
+        {
+          "fill-specializations": [
+            {
+              "appearance": "dark",
+              "value": {
+                "solid": "srgb:0.14902,0.19608,0.21961,1.00000"
+              }
+            }
+          ],
+          "glass": false,
+          "image-name": "screen.svg",
+          "name": "screen"
+        },
+        {
+          "fill-specializations": [
+            {
+              "appearance": "dark",
+              "value": {
+                "solid": "srgb:0.27059,0.35294,0.39216,1.00000"
+              }
+            }
+          ],
+          "glass": false,
+          "image-name": "frame.svg",
+          "name": "frame"
+        }
+      ],
+      "lighting": "individual",
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "specular": false,
+      "translucency": {
+        "enabled": false,
+        "value": 0.5
+      }
+    }
+  ],
+  "supported-platforms": {
+    "squares": "shared"
+  }
+}
