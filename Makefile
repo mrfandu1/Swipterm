@@ -3,12 +3,37 @@ SHELL := /bin/bash
 .SILENT:
 
 build_ios:
-	xcodebuild build -skipMacroValidation -scheme Swipterm -configuration Debug -destination 'generic/platform=iOS' | xcbeautify | grep -A 10 -e "Build Succeeded" -e "BUILD FAILED" -e "❌"
+	xcodebuild build -skipMacroValidation -derivedDataPath build/DerivedData $(XCODEBUILD_FLAGS) -scheme Swipterm -configuration Debug -destination 'generic/platform=iOS' | xcbeautify | grep -A 10 -e "Build Succeeded" -e "BUILD FAILED" -e "❌"
 
 build_ios_simulator:
-	xcodebuild build -skipMacroValidation -scheme Swipterm -configuration Debug -destination 'generic/platform=iOS Simulator' ARCHS=arm64 | xcbeautify | grep -A 10 -e "Build Succeeded" -e "BUILD FAILED" -e "❌"
+	xcodebuild build -skipMacroValidation -derivedDataPath build/DerivedData $(XCODEBUILD_FLAGS) -scheme Swipterm -configuration Debug -destination 'generic/platform=iOS Simulator' ARCHS=arm64 | xcbeautify | grep -A 10 -e "Build Succeeded" -e "BUILD FAILED" -e "❌"
+
+build_ios_ipa: archive_ios_ipa
+
+archive_ios_ipa:
+	rm -rf build/Swipterm-iOS.xcarchive build/Payload build/Swipterm.ipa
+	xcodebuild archive -skipMacroValidation -derivedDataPath build/DerivedData $(XCODEBUILD_FLAGS) -scheme Swipterm -configuration Release -destination 'generic/platform=iOS' -archivePath build/Swipterm-iOS.xcarchive \
+		CODE_SIGNING_ALLOWED=NO | xcbeautify
+	mkdir build/Payload
+	cp -R build/Swipterm-iOS.xcarchive/Products/Applications/Swipterm.app build/Payload/
+	codesign --force --sign - --entitlements Swipterm/Swipterm.entitlements build/Payload/Swipterm.app
+	cd build && zip -qry Swipterm.ipa Payload
+	rm -rf build/Payload
+
+altstore_icon:
+	rm -rf build/altstore
+	mkdir -p build/altstore
+	"$$(xcode-select -p)/../Applications/Icon Composer.app/Contents/Executables/ictool" Swipterm/Resources/AppIcon.icon \
+		--export-image --output-file build/altstore/icon.png --platform iOS --rendition Default --width 568 --height 568 --scale 1 > /dev/null
+	# AltStore draws icons on a white background, clipped to a circle or a height/5 corner radius
+	# (AltStore fafd76e, AltStore/Components/AppIconImageView.swift:46-65), so the transparent
+	# corners and edge highlight of the exported squircle show up as a white border.
+	sips --cropToHeightWidth 512 512 build/altstore/icon.png > /dev/null
+
+altstore_source: altstore_icon
+	python3 .github/build_altstore_source.py
 
 fmt:
 	swiftformat Swipterm
 
-.PHONY: build_ios build_ios_simulator fmt
+.PHONY: build_ios build_ios_simulator build_ios_ipa archive_ios_ipa altstore_icon altstore_source fmt

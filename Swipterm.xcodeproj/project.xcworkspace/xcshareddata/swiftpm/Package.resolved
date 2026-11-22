@@ -1,5 +1,5 @@
 {
-  "originHash" : "5380f320acfb2d94ab3a063368100c5f965f8f3f7003e1ccafebe186c2c5517c",
+  "originHash" : "32dc860918030c952cd5f3dc57e5e2566df39565c449aa22cd2b89fc741db1f9",
   "pins" : [
     {
       "identity" : "displaylink",
@@ -26,6 +26,15 @@
       "state" : {
         "revision" : "b9694b5014bcf783882328a04da37569422aebef",
         "version" : "2.2.2026111701"
+      }
+    },
+    {
+      "identity" : "swiptermkit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/swipt-automation/SwiptermKit",
+      "state" : {
+        "revision" : "807a9a0c0ea4a6b186db33a697603184e6104e1f",
+        "version" : "0.2.2026112201"
       }
     }
   ],

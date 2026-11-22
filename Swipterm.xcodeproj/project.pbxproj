@@ -115,7 +115,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				5D0000000000000000000A01 /* XCRemoteSwiftPackageReference "libghostty-spm" */,
-				5D0000000000000000000A04 /* XCLocalSwiftPackageReference "../SwiptermKit" */,
+				5D0000000000000000000A04 /* XCRemoteSwiftPackageReference "SwiptermKit" */,
 				5D0000000000000000000A06 /* XCRemoteSwiftPackageReference "GRDB" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -292,7 +292,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = io.nekohasekai.swipterm;
 				PRODUCT_NAME = Swipterm;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -331,7 +331,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = io.nekohasekai.swipterm;
 				PRODUCT_NAME = Swipterm;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -369,13 +369,6 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCLocalSwiftPackageReference section */
-		5D0000000000000000000A04 /* XCLocalSwiftPackageReference "../SwiptermKit" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = "../SwiptermKit";
-		};
-/* End XCLocalSwiftPackageReference section */
-
 /* Begin XCRemoteSwiftPackageReference section */
 		5D0000000000000000000A01 /* XCRemoteSwiftPackageReference "libghostty-spm" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -383,6 +376,14 @@
 			requirement = {
 				kind = upToNextMajorVersion;
 				minimumVersion = 2.2.2026111701;
+			};
+		};
+		5D0000000000000000000A04 /* XCRemoteSwiftPackageReference "SwiptermKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/swipt-automation/SwiptermKit";
+			requirement = {
+				kind = upToNextMinorVersion;
+				minimumVersion = 0.2.2026112201;
 			};
 		};
 		5D0000000000000000000A06 /* XCRemoteSwiftPackageReference "GRDB" */ = {
@@ -408,7 +409,7 @@
 		};
 		5D0000000000000000000A05 /* SwiptermKit */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 5D0000000000000000000A04 /* XCLocalSwiftPackageReference "../SwiptermKit" */;
+			package = 5D0000000000000000000A04 /* XCRemoteSwiftPackageReference "SwiptermKit" */;
 			productName = SwiptermKit;
 		};
 		5D0000000000000000000A07 /* GRDB */ = {

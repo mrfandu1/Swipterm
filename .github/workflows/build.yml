@@ -1,0 +1,231 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      release:
+        description: Release the current nightly as a stable version
+        type: boolean
+        default: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.release && 'release' || 'build' }}
+  cancel-in-progress: ${{ !inputs.release }}
+
+jobs:
+  calculate_version:
+    name: Calculate version
+    if: ${{ !inputs.release }}
+    runs-on: ubuntu-latest
+    outputs:
+      app_changed: ${{ steps.outputs.outputs.app_changed }}
+      build_number: ${{ steps.outputs.outputs.build_number }}
+      version: ${{ steps.outputs.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+        with:
+          fetch-depth: 1
+      - name: Set outputs
+        id: outputs
+        run: |-
+          source .github/github.sh
+          RELEASES=$(retry gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            --jq '.[] | select(.draft or .prerelease | not) | .tag_name | select(test("^v[0-9]+\\.[0-9]+\\.[0-9]+$"))')
+          STABLE=$(sort -V <<< "$RELEASES" | tail -1)
+          VERSION=$(grep -m 1 -oE 'MARKETING_VERSION = [^;]+' Swipterm.xcodeproj/project.pbxproj | cut -d ' ' -f 3)
+          if [ -n "$STABLE" ]; then
+            IFS=. read -r MAJOR MINOR PATCH <<< "${STABLE#v}"
+            VERSION=$(printf '%s\n' "$VERSION" "$MAJOR.$MINOR.$((PATCH + 1))" | sort -V | tail -1)
+          fi
+          PREVIOUS=0
+          APP_CHANGED=true
+          if retry git fetch --depth=1 origin tag nightly; then
+            PREVIOUS=$(git tag -l --format='%(contents:subject)' nightly)
+            RELEASED=$(curl -fsSL --retry 3 "https://github.com/$GITHUB_REPOSITORY/releases/download/nightly/metadata.json" | jq -r '"\(.version) \(.build)"' || true)
+            if [ "$GITHUB_EVENT_NAME" = push ] && [ "$RELEASED" = "$VERSION $PREVIOUS" ] && git diff --quiet 'nightly^{commit}' HEAD -- . \
+              ':!.github/workflows' ':!.github/*.sh' ':!*.md' ':!LICENSE' ':!.gitignore'; then
+              APP_CHANGED=false
+            fi
+          fi
+          echo "app_changed=$APP_CHANGED"
+          echo "app_changed=$APP_CHANGED" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "build_number=$((PREVIOUS + 1))"
+          echo "build_number=$((PREVIOUS + 1))" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+  build_ios_ipa:
+    name: Build iOS (IPA)
+    if: needs.calculate_version.outputs.app_changed == 'true'
+    runs-on: xcode-27
+    needs:
+      - calculate_version
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+        with:
+          fetch-depth: 1
+      - name: Select Xcode
+        run: .github/select_xcode.sh
+      - name: Get Xcode version
+        id: xcode
+        run: echo "build=$(xcodebuild -version | tail -1 | cut -d ' ' -f 3)" >> "$GITHUB_OUTPUT"
+      - name: Cache Swift packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/SourcePackages
+          key: spm-${{ steps.xcode.outputs.build }}-${{ hashFiles('Swipterm.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: spm-${{ steps.xcode.outputs.build }}-
+      - name: Cache Swift compilation
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/CompilationCache
+          key: swift-ios-${{ steps.xcode.outputs.build }}-${{ hashFiles('Swipterm/**', 'Swipterm.xcodeproj/**') }}
+          restore-keys: swift-ios-${{ steps.xcode.outputs.build }}-
+      - name: Build
+        run: make archive_ios_ipa altstore_icon
+        env:
+          XCODEBUILD_FLAGS: -clonedSourcePackagesDirPath ${{ runner.temp }}/SourcePackages MARKETING_VERSION=${{ needs.calculate_version.outputs.version }} CURRENT_PROJECT_VERSION=${{ needs.calculate_version.outputs.build_number }} COMPILATION_CACHE_ENABLE_CACHING=YES COMPILATION_CACHE_CAS_PATH=${{ runner.temp }}/CompilationCache COMPILATION_CACHE_LIMIT_SIZE=2G
+      - name: Package dSYMs
+        run: ditto -c -k --keepParent build/Swipterm-iOS.xcarchive/dSYMs build/Swipterm-iOS.dSYMs.zip
+      - name: Write metadata
+        run: |-
+          INFO_PLIST=build/Swipterm-iOS.xcarchive/Products/Applications/Swipterm.app/Info.plist
+          VERSION=$(plutil -extract CFBundleShortVersionString raw "$INFO_PLIST")
+          BUILD=$(plutil -extract CFBundleVersion raw "$INFO_PLIST")
+          printf '{"version":"%s","build":%s}\n' "$VERSION" "$BUILD" > build/metadata.json
+      - name: Upload build
+        uses: actions/upload-artifact@v4
+        with:
+          name: Swipterm-iOS-IPA
+          path: |-
+            build/Swipterm.ipa
+            build/Swipterm-iOS.dSYMs.zip
+            build/metadata.json
+            build/altstore
+          if-no-files-found: error
+  publish_nightly:
+    name: Publish nightly
+    if: github.ref == 'refs/heads/main' && !cancelled() && !failure() && needs.calculate_version.outputs.app_changed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    needs:
+      - calculate_version
+      - build_ios_ipa
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+        with:
+          fetch-depth: 0
+      - name: Download builds
+        uses: actions/download-artifact@v4
+        with:
+          pattern: Swipterm-*
+          merge-multiple: true
+          path: build
+      - name: Build AltStore source
+        run: python3 .github/build_altstore_source.py
+      - name: Publish
+        run: |-
+          source .github/github.sh
+          if RELEASE=$(retry gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name); then
+            NOTES=$(git log --format='* %s' "$RELEASE..")
+          else
+            NOTES=$(git log --format='* %s')
+          fi
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" tag -a -f nightly -m "$BUILD_NUMBER" "$GITHUB_SHA"
+          retry git push -f origin refs/tags/nightly
+          DRAFT=$(retry create_draft nightly-draft --prerelease --target "$GITHUB_SHA" --title "Nightly build" --notes "$NOTES" \
+            build/Swipterm.ipa build/Swipterm-iOS.dSYMs.zip build/metadata.json build/altstore/altstore.json build/altstore/icon.png)
+          if PREVIOUS=$(retry gh api "repos/$GITHUB_REPOSITORY/releases/tags/nightly" --jq .url); then
+            retry delete "$PREVIOUS"
+          fi
+          retry gh api -X PATCH "$DRAFT" -f tag_name=nightly -F draft=false > /dev/null
+        env:
+          BUILD_NUMBER: ${{ needs.calculate_version.outputs.build_number }}
+          GH_TOKEN: ${{ github.token }}
+  move_nightly:
+    name: Move nightly
+    if: github.ref == 'refs/heads/main' && !cancelled() && !failure() && needs.calculate_version.outputs.app_changed == 'false'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    needs:
+      - calculate_version
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+        with:
+          fetch-depth: 1
+      - name: Move tag
+        run: |-
+          source .github/github.sh
+          retry git fetch --depth=1 origin tag nightly
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" tag -a -f nightly -m "$(git tag -l --format='%(contents:subject)' nightly)" "$GITHUB_SHA"
+          retry git push -f origin refs/tags/nightly
+  prune_caches:
+    name: Prune caches
+    if: github.ref == 'refs/heads/main' && !cancelled() && needs.calculate_version.outputs.app_changed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+    needs:
+      - calculate_version
+      - build_ios_ipa
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+        with:
+          fetch-depth: 1
+      - name: Delete superseded caches
+        run: |-
+          source .github/github.sh
+          CACHES=$(retry gh cache list --ref "$GITHUB_REF" --limit 1000 --json id,key \
+            --jq 'group_by(.key | sub("-[^-]*$"; "")) | map(.[1:]) | flatten | .[].id')
+          for cache in $CACHES; do
+            retry delete "repos/$GITHUB_REPOSITORY/actions/caches/$cache"
+          done
+        env:
+          GH_TOKEN: ${{ github.token }}
+  release:
+    name: Release
+    if: inputs.release && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+        with:
+          fetch-depth: 0
+      - name: Release
+        run: |-
+          source .github/github.sh
+          retry gh release download nightly -D build --clobber -p Swipterm.ipa -p Swipterm-iOS.dSYMs.zip -p metadata.json -p icon.png
+          if [ "$(jq .build build/metadata.json)" != "$(git tag -l --format='%(contents:subject)' nightly)" ]; then
+            echo "nightly was updated during the release, run it again" >&2
+            exit 1
+          fi
+          TAG=v$(jq -r .version build/metadata.json)
+          if retry gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" --silent 2> /dev/null || [ -n "$(retry drafts "$TAG")" ]; then
+            echo "$TAG already exists" >&2
+            exit 1
+          fi
+          if PREVIOUS=$(retry gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name); then
+            NOTES=$(git log --format='* %s' "$PREVIOUS..nightly")
+          else
+            NOTES=$(git log --format='* %s' nightly)
+          fi
+          git checkout --detach 'nightly^{commit}'
+          python3 .github/build_altstore_source.py --tag "$TAG"
+          retry create_draft "$TAG" --target "$(git rev-parse 'nightly^{commit}')" --notes "$NOTES" \
+            build/Swipterm.ipa build/Swipterm-iOS.dSYMs.zip build/metadata.json build/icon.png build/altstore/altstore.json
+        env:
+          GH_TOKEN: ${{ github.token }}
