@@ -3,7 +3,7 @@ SHELL := /bin/bash
 .SILENT:
 
 build_ios:
-	xcodebuild build -skipMacroValidation -derivedDataPath build/DerivedData $(XCODEBUILD_FLAGS) -scheme Swipterm -configuration Debug -destination 'generic/platform=iOS' | xcbeautify | grep -A 10 -e "Build Succeeded" -e "BUILD FAILED" -e "❌"
+	xcodebuild build -allowProvisioningUpdates -skipMacroValidation -derivedDataPath build/DerivedData $(XCODEBUILD_FLAGS) -scheme Swipterm -configuration Debug -destination 'generic/platform=iOS' | xcbeautify | grep -A 10 -e "Build Succeeded" -e "BUILD FAILED" -e "❌"
 
 build_ios_simulator:
 	xcodebuild build -skipMacroValidation -derivedDataPath build/DerivedData $(XCODEBUILD_FLAGS) -scheme Swipterm -configuration Debug -destination 'generic/platform=iOS Simulator' ARCHS=arm64 | xcbeautify | grep -A 10 -e "Build Succeeded" -e "BUILD FAILED" -e "❌"
@@ -31,9 +31,10 @@ altstore_icon:
 	sips --cropToHeightWidth 512 512 build/altstore/icon.png > /dev/null
 
 altstore_source: altstore_icon
-	python3 .github/build_altstore_source.py
+	go run ./internal/cmd/ci altstore
 
 fmt:
 	swiftformat Swipterm
+	go fmt ./...
 
 .PHONY: build_ios build_ios_simulator build_ios_ipa archive_ios_ipa altstore_icon altstore_source fmt

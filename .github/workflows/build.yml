@@ -29,34 +29,14 @@ jobs:
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
         with:
           fetch-depth: 1
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
       - name: Set outputs
         id: outputs
-        run: |-
-          source .github/github.sh
-          RELEASES=$(retry gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
-            --jq '.[] | select(.draft or .prerelease | not) | .tag_name | select(test("^v[0-9]+\\.[0-9]+\\.[0-9]+$"))')
-          STABLE=$(sort -V <<< "$RELEASES" | tail -1)
-          VERSION=$(grep -m 1 -oE 'MARKETING_VERSION = [^;]+' Swipterm.xcodeproj/project.pbxproj | cut -d ' ' -f 3)
-          if [ -n "$STABLE" ]; then
-            IFS=. read -r MAJOR MINOR PATCH <<< "${STABLE#v}"
-            VERSION=$(printf '%s\n' "$VERSION" "$MAJOR.$MINOR.$((PATCH + 1))" | sort -V | tail -1)
-          fi
-          PREVIOUS=0
-          APP_CHANGED=true
-          if retry git fetch --depth=1 origin tag nightly; then
-            PREVIOUS=$(git tag -l --format='%(contents:subject)' nightly)
-            RELEASED=$(curl -fsSL --retry 3 "https://github.com/$GITHUB_REPOSITORY/releases/download/nightly/metadata.json" | jq -r '"\(.version) \(.build)"' || true)
-            if [ "$GITHUB_EVENT_NAME" = push ] && [ "$RELEASED" = "$VERSION $PREVIOUS" ] && git diff --quiet 'nightly^{commit}' HEAD -- . \
-              ':!.github/workflows' ':!.github/*.sh' ':!*.md' ':!LICENSE' ':!.gitignore'; then
-              APP_CHANGED=false
-            fi
-          fi
-          echo "app_changed=$APP_CHANGED"
-          echo "app_changed=$APP_CHANGED" >> "$GITHUB_OUTPUT"
-          echo "version=$VERSION"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "build_number=$((PREVIOUS + 1))"
-          echo "build_number=$((PREVIOUS + 1))" >> "$GITHUB_OUTPUT"
+        run: go run ./internal/cmd/ci version
         env:
           GH_TOKEN: ${{ github.token }}
   build_ios_ipa:
@@ -93,12 +73,6 @@ jobs:
           XCODEBUILD_FLAGS: -clonedSourcePackagesDirPath ${{ runner.temp }}/SourcePackages MARKETING_VERSION=${{ needs.calculate_version.outputs.version }} CURRENT_PROJECT_VERSION=${{ needs.calculate_version.outputs.build_number }} COMPILATION_CACHE_ENABLE_CACHING=YES COMPILATION_CACHE_CAS_PATH=${{ runner.temp }}/CompilationCache COMPILATION_CACHE_LIMIT_SIZE=2G
       - name: Package dSYMs
         run: ditto -c -k --keepParent build/Swipterm-iOS.xcarchive/dSYMs build/Swipterm-iOS.dSYMs.zip
-      - name: Write metadata
-        run: |-
-          INFO_PLIST=build/Swipterm-iOS.xcarchive/Products/Applications/Swipterm.app/Info.plist
-          VERSION=$(plutil -extract CFBundleShortVersionString raw "$INFO_PLIST")
-          BUILD=$(plutil -extract CFBundleVersion raw "$INFO_PLIST")
-          printf '{"version":"%s","build":%s}\n' "$VERSION" "$BUILD" > build/metadata.json
       - name: Upload build
         uses: actions/upload-artifact@v4
         with:
@@ -106,7 +80,6 @@ jobs:
           path: |-
             build/Swipterm.ipa
             build/Swipterm-iOS.dSYMs.zip
-            build/metadata.json
             build/altstore
           if-no-files-found: error
   publish_nightly:
@@ -129,8 +102,15 @@ jobs:
           pattern: Swipterm-*
           merge-multiple: true
           path: build
-      - name: Build AltStore source
-        run: python3 .github/build_altstore_source.py
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Build metadata and AltStore source
+        run: |-
+          go run ./internal/cmd/ci metadata
+          go run ./internal/cmd/ci altstore
       - name: Publish
         run: |-
           source .github/github.sh
@@ -205,6 +185,11 @@ jobs:
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
         with:
           fetch-depth: 0
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
       - name: Release
         run: |-
           source .github/github.sh
@@ -224,7 +209,7 @@ jobs:
             NOTES=$(git log --format='* %s' nightly)
           fi
           git checkout --detach 'nightly^{commit}'
-          python3 .github/build_altstore_source.py --tag "$TAG"
+          go run ./internal/cmd/ci altstore -tag "$TAG"
           retry create_draft "$TAG" --target "$(git rev-parse 'nightly^{commit}')" --notes "$NOTES" \
             build/Swipterm.ipa build/Swipterm-iOS.dSYMs.zip build/metadata.json build/icon.png build/altstore/altstore.json
         env:
