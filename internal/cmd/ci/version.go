@@ -29,7 +29,7 @@ var transientStatusCodes = []int{
 }
 
 var appPaths = []string{
-	".", ":!.github/workflows", ":!.github/*.sh", ":!*.md", ":!LICENSE", ":!.gitignore", ":!internal/cmd/ci/version.go",
+	".", ":!.github/workflows", ":!.github/*.sh", ":!*.md", ":!assets/readme", ":!LICENSE", ":!.gitignore", ":!internal/cmd/ci/version.go",
 }
 
 type release struct {
