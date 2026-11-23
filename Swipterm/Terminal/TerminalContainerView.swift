@@ -7,7 +7,6 @@ struct TerminalContainerView: View {
     let sessionManager: TerminalSessionManager
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    @Environment(\.openURL) private var openURL
     @State private var splitState = TerminalSplitPresentationState()
     @State private var showSettings = false
 
@@ -56,7 +55,7 @@ struct TerminalContainerView: View {
     private func setupCallbacks(for session: TerminalSession) {
         session.extras.onOpenURL = { urlString, _ in
             guard let url = URL(string: urlString) else { return }
-            openURL(url)
+            system.pendingOpenURL = url
         }
         session.extras.onCommandKey = { key in
             switch key {

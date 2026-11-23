@@ -19,19 +19,6 @@ final class TerminalSession: Identifiable {
         case exited(code: Int32)
         case signaled(Int32)
         case failed(String)
-
-        var displayText: LocalizedStringResource {
-            switch self {
-            case .exited(code: 0):
-                "Session ended."
-            case let .exited(code):
-                "Session ended (exit \(code))."
-            case let .signaled(signal):
-                "Session ended (signal \(signal))."
-            case let .failed(message):
-                "Failed to start session: \(message)"
-            }
-        }
     }
 
     let id = UUID()

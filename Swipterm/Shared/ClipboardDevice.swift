@@ -15,8 +15,6 @@ nonisolated struct ClipboardDevice: LinuxCharacterDevice {
 }
 
 private final nonisolated class ClipboardDeviceFile: LinuxCharacterDeviceFile, @unchecked Sendable {
-    private static let maxBufferSize = 8 * 1024 * 1024
-
     private let access: LinuxFileAccess
     private let lock = NSLock()
     private let readBuffer: Data
@@ -47,10 +45,7 @@ private final nonisolated class ClipboardDeviceFile: LinuxCharacterDeviceFile, @
         guard access != .readOnly else {
             throw LinuxError.EBADF
         }
-        try lock.withLock {
-            guard writeBuffer.count + data.count <= Self.maxBufferSize else {
-                throw LinuxError.ENOMEM
-            }
+        lock.withLock {
             writeBuffer.append(data)
             didWrite = true
         }
@@ -59,7 +54,7 @@ private final nonisolated class ClipboardDeviceFile: LinuxCharacterDeviceFile, @
 
     func close() {
         let written: Data? = lock.withLock {
-            didWrite ? writeBuffer : nil
+            (didWrite || access == .writeOnly) ? writeBuffer : nil
         }
         if let written {
             UIPasteboard.general.string = String(decoding: written, as: UTF8.self)

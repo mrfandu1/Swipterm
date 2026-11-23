@@ -69,6 +69,7 @@ private struct ContentView: View {
             }
         }
         .modifier(KeepScreenAwakeModifier(isRequired: system.state.keepsScreenAwake))
+        .modifier(OpenURLPromptModifier())
         .onChange(of: system.state) { _, state in
             if state == .running {
                 setupDraft = SetupDraft()

@@ -8,6 +8,8 @@ struct TerminalSessionContentView: View {
     let onClose: () -> Void
 
     @Environment(\.colorScheme) private var colorScheme
+    @State private var isPresentingEnd = false
+    @State private var isEndAcknowledged = false
 
     var body: some View {
         ZStack {
@@ -19,14 +21,59 @@ struct TerminalSessionContentView: View {
                 isActive: isActive,
                 isVisible: isVisible
             )
-            TerminalSessionOverlayView(
-                phase: session.phase,
-                hasVisibleOutput: session.hasVisibleOutput,
-                onClose: onClose
-            )
-            .environment(\.colorScheme, overlayColorScheme)
+            if session.phase == .starting || session.phase == .running, !session.hasVisibleOutput {
+                ProgressView()
+                    .controlSize(.large)
+                    .environment(\.colorScheme, overlayColorScheme)
+            }
         }
         .accessibilityHidden(!isVisible)
+        .alert(endTitle, isPresented: $isPresentingEnd, presenting: endReason) { reason in
+            if case let .failed(message) = reason {
+                Button("Copy Error") {
+                    UIPasteboard.general.string = message
+                }
+            }
+            Button("Close Session", action: onClose)
+            Button("Cancel", role: .cancel) {}
+        } message: { reason in
+            switch reason {
+            case let .exited(code):
+                Text("The session exited with status \(code).")
+            case let .signaled(signal):
+                Text("The session was terminated by signal \(signal).")
+            case let .failed(message):
+                Text(message)
+            }
+        }
+        .onChange(of: endReason, initial: true) { _, endReason in
+            if endReason == nil {
+                isPresentingEnd = false
+                isEndAcknowledged = false
+            } else {
+                isPresentingEnd = isVisible && !isEndAcknowledged
+            }
+        }
+        .onChange(of: isVisible) { _, isVisible in
+            isPresentingEnd = isVisible && endReason != nil && !isEndAcknowledged
+        }
+        .onChange(of: isPresentingEnd) { _, isPresentingEnd in
+            if !isPresentingEnd, isVisible, endReason != nil {
+                isEndAcknowledged = true
+            }
+        }
+    }
+
+    private var endReason: TerminalSession.EndReason? {
+        guard case let .finished(reason) = session.phase, reason != .exited(code: 0) else { return nil }
+        return reason
+    }
+
+    private var endTitle: Text {
+        if case .finished(.failed) = session.phase {
+            return Text("Failed to Start Session")
+        }
+        return Text("Session Ended")
     }
 
     private var backgroundColor: Color {
@@ -44,37 +91,5 @@ struct TerminalSessionContentView: View {
             + 0.7152 * Double(terminalColor.green)
             + 0.0722 * Double(terminalColor.blue)
         return luminance < 128 ? .dark : .light
-    }
-}
-
-private struct TerminalSessionOverlayView: View {
-    let phase: TerminalSession.Phase
-    let hasVisibleOutput: Bool
-    let onClose: () -> Void
-
-    var body: some View {
-        switch phase {
-        case .starting, .running:
-            if !hasVisibleOutput {
-                ProgressView()
-                    .controlSize(.large)
-            }
-        case let .finished(reason):
-            VStack {
-                Spacer()
-                HStack(spacing: 12) {
-                    Text(reason.displayText)
-                        .font(.callout)
-                        .multilineTextAlignment(.leading)
-                        .textSelection(.enabled)
-                    Spacer(minLength: 8)
-                    Button("Close", action: onClose)
-                        .buttonStyle(.borderedProminent)
-                }
-                .padding()
-                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .padding()
-            }
-        }
     }
 }

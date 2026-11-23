@@ -105,16 +105,12 @@ struct TerminalSurfaceView: View {
 
         func syncFocus(isActive: Bool) {
             wantsFocus = isActive
-            if isActive {
-                guard window != nil else { return }
-                if !isFirstResponder {
-                    DispatchQueue.main.async { [weak self] in
-                        guard let self, wantsFocus, window != nil, !isFirstResponder else { return }
-                        _ = becomeFirstResponder()
-                    }
-                }
-            } else if isFirstResponder {
-                _ = resignFirstResponder()
+            guard window != nil, isActive != isFirstResponder else { return }
+            // A keyboard hide posted while SwiftUI is updating the hosting view leaves that view laid out
+            // with the old keyboard height as a fixed bottom edge, which ignoresSafeArea cannot extend past.
+            DispatchQueue.main.async { [weak self] in
+                guard let self, window != nil, wantsFocus != isFirstResponder else { return }
+                _ = wantsFocus ? becomeFirstResponder() : resignFirstResponder()
             }
         }
 

@@ -81,6 +81,7 @@ final class LinuxSystem {
     private(set) var state: State = .checking
     private(set) var installedContainer: ContainerMetadata?
     private(set) var activeInitMode: ContainerInitMode?
+    var pendingOpenURL: URL?
     var onWillShutdown: (() -> Void)?
 
     private var runtime: LinuxRuntime?
@@ -1114,12 +1115,8 @@ final class LinuxSystem {
             try await invocation.standardError.write(Data("\(name): invalid URL: \(target)\n".utf8))
             return 1
         }
-        let opened = await Task { @MainActor in
-            await UIApplication.shared.open(url)
-        }.value
-        if !opened {
-            try await invocation.standardError.write(Data("\(name): failed to open \(target)\n".utf8))
-            return 1
+        await MainActor.run {
+            LinuxSystem.shared.pendingOpenURL = url
         }
         return 0
     }
