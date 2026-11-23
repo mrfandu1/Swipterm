@@ -12,6 +12,7 @@ struct SwiptermApp: App {
 private struct ContentView: View {
     private let system = LinuxSystem.shared
     @State private var sessionManager = TerminalSessionManager()
+    @State private var setupDraft = SetupDraft()
 
     var body: some View {
         Group {
@@ -26,7 +27,7 @@ private struct ContentView: View {
                             ProvisioningView(provisioning: provisioning)
                                 .id(provisioning.attempt)
                         default:
-                            SetupView()
+                            SetupView(draft: $setupDraft)
                         }
                     }
                     .navigationTitle("Swipterm Setup")
@@ -68,6 +69,11 @@ private struct ContentView: View {
             }
         }
         .modifier(KeepScreenAwakeModifier(isRequired: system.state.keepsScreenAwake))
+        .onChange(of: system.state) { _, state in
+            if state == .running {
+                setupDraft = SetupDraft()
+            }
+        }
         .task {
             system.onWillShutdown = {
                 sessionManager.closeAll()

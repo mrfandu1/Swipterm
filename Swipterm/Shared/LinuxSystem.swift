@@ -48,10 +48,9 @@ final class LinuxSystem {
     }
 
     private struct ConsoleProgress {
-        var fraction: Double?
-        var detail: String?
+        var meter: ConsoleMeter
         var chunkIndex: Int?
-        var lineLength = 0
+        var lineLengths: [Int] = []
     }
 
     private enum StartupError: LocalizedError {
@@ -78,11 +77,6 @@ final class LinuxSystem {
     private static let outputDrainTimeout = Duration.seconds(1)
     private static let haltReasonTimeout = Duration.seconds(5)
     private static let maxBootReboots = 2
-    private static let consoleByteCountStyle = ByteCountFormatStyle(
-        style: .file,
-        spellsOutZero: false,
-        locale: Locale(identifier: "en_US_POSIX")
-    )
 
     private(set) var state: State = .checking
     private(set) var installedContainer: ContainerMetadata?
@@ -168,12 +162,10 @@ final class LinuxSystem {
         pendingInstall = request
         beginSetupAttempt()
         switch request.source {
-        case let .catalog(release, _):
-            appendConsoleStep("Downloading \(release.distribution.displayName) \(release.displayTitle)", generation: generation)
-        case let .remoteArchive(url):
-            appendConsoleStep("Downloading \(url.lastPathComponent)", generation: generation)
-        case let .localArchive(url):
-            appendConsoleStep("Copying \(url.lastPathComponent)", generation: generation)
+        case .catalog, .remoteArchive:
+            appendConsoleStep("Download", generation: generation)
+        case .localArchive:
+            appendConsoleStep("Copy", generation: generation)
         }
         let previousRuntime = detachRuntimeForShutdown()
 
@@ -203,66 +195,20 @@ final class LinuxSystem {
                 let archiveURL: URL
                 switch request.source {
                 case let .catalog(release, mirror):
-                    let candidates = DistributionMirrorRouter.candidates(
+                    let urls = await DistributionMirrorRouter.endpoints(
                         for: release.distribution.repository,
                         preferring: mirror
-                    ) { endpoint in
-                        endpoint.url(for: release.artifactPath)
-                    }
-                    var candidateFailure: (any Error)?
-                    archiveURL = try await DistributionMirrorRouter.firstSuccess(of: candidates) { candidate in
-                        if let candidateFailure {
-                            endConsoleProgressLine(generation: generation)
-                            appendConsole(
-                                Data("\u{1B}[1;33mwarning:\u{1B}[0m \(candidateFailure.localizedDescription)\r\n".utf8),
-                                generation: generation
-                            )
-                            appendConsoleStep(
-                                "Retrying from \(candidate.url.host() ?? candidate.url.absoluteString)",
-                                generation: generation
-                            )
-                        }
-                        let epoch = consoleProgressEpoch
-                        do {
-                            return try await RootImageDownloader.download(
-                                from: candidate.url,
-                                expectedBytes: release.compressedBytes,
-                                expectedSHA256: release.sha256,
-                                onProgress: { progress in
-                                    DispatchQueue.main.async {
-                                        MainActor.assumeIsolated {
-                                            LinuxSystem.shared.appendConsoleDownloadProgress(progress, generation: generation, epoch: epoch)
-                                        }
-                                    }
-                                },
-                                onVerifying: {
-                                    DispatchQueue.main.async {
-                                        MainActor.assumeIsolated {
-                                            LinuxSystem.shared.appendConsoleStep("Verifying SHA-256", generation: generation)
-                                        }
-                                    }
-                                }
-                            )
-                        } catch {
-                            candidateFailure = error
-                            throw error
-                        }
-                    }
+                    ).map { $0.url(for: release.artifactPath) }
+                    archiveURL = try await downloadArchive(
+                        from: urls,
+                        expectedBytes: release.compressedBytes,
+                        expectedSHA256: release.sha256,
+                        generation: generation
+                    )
                     temporaryArchiveURL = archiveURL
 
                 case let .remoteArchive(url):
-                    let epoch = consoleProgressEpoch
-                    archiveURL = try await RootImageDownloader.download(
-                        from: url,
-                        onProgress: { progress in
-                            DispatchQueue.main.async {
-                                MainActor.assumeIsolated {
-                                    LinuxSystem.shared.appendConsoleDownloadProgress(progress, generation: generation, epoch: epoch)
-                                }
-                            }
-                        },
-                        onVerifying: {}
-                    )
+                    archiveURL = try await downloadArchive(from: [url], generation: generation)
                     temporaryArchiveURL = archiveURL
 
                 case let .localArchive(url):
@@ -274,17 +220,18 @@ final class LinuxSystem {
                 }
 
                 guard self.generation == generation else { return }
-                appendConsoleStep("Extracting root filesystem", generation: generation)
+                appendConsoleStep("Extract", generation: generation)
                 let epoch = consoleProgressEpoch
+                let start = ContinuousClock.now
                 try await LinuxRootImage.archive(at: archiveURL).install(to: stagingRootURL) { fraction in
                     DispatchQueue.main.async {
                         MainActor.assumeIsolated {
-                            LinuxSystem.shared.appendConsoleProgress(fraction: fraction, detail: nil, generation: generation, epoch: epoch)
+                            LinuxSystem.shared.appendConsoleExtractionProgress(fraction, start: start, generation: generation, epoch: epoch)
                         }
                     }
                 }
                 guard self.generation == generation else { return }
-                appendConsoleProgress(fraction: 1, detail: nil, generation: generation, epoch: epoch)
+                appendConsoleExtractionProgress(1, start: start, generation: generation, epoch: epoch)
                 endConsoleProgressLine(generation: generation)
                 try? FileManager.default.removeItem(at: archiveURL)
                 temporaryArchiveURL = nil
@@ -398,14 +345,7 @@ final class LinuxSystem {
         let previousColumns = setupTerminalSize.columns
         setupTerminalSize = size
         setupTerminal?.resize(size)
-        guard let openConsoleProgress, size.columns != previousColumns else { return }
-        let cursorRow = openConsoleProgress.lineLength / Int(size.columns)
-        if cursorRow > 0 {
-            let clear = Data(("\r\u{1B}[K" + String(repeating: "\u{1B}[A\r\u{1B}[K", count: cursorRow)).utf8)
-            for listener in consoleListeners.values {
-                listener(clear)
-            }
-        }
+        guard openConsoleProgress != nil, size.columns != previousColumns else { return }
         renderConsoleProgress()
     }
 
@@ -491,41 +431,87 @@ final class LinuxSystem {
         appendConsole(Data("\u{1B}[1m==> \(title)\u{1B}[0m\r\n".utf8), generation: generation)
     }
 
-    private func appendConsoleDownloadProgress(_ progress: RootImageDownloadProgress, generation: UInt64, epoch: UInt64) {
-        var detail = progress.bytesWritten.formatted(Self.consoleByteCountStyle)
-        if let totalBytes = progress.totalBytes, totalBytes > 0 {
-            detail += " / \(totalBytes.formatted(Self.consoleByteCountStyle))"
-        }
-        appendConsoleProgress(fraction: progress.fraction, detail: detail, generation: generation, epoch: epoch)
+    private func downloadArchive(
+        from urls: [URL],
+        expectedBytes: Int64? = nil,
+        expectedSHA256: String? = nil,
+        generation: UInt64
+    ) async throws -> URL {
+        let epoch = consoleProgressEpoch
+        let start = ContinuousClock.now
+        return try await RootImageDownloader.download(
+            from: urls,
+            expectedBytes: expectedBytes,
+            expectedSHA256: expectedSHA256,
+            onProgress: { progress in
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated {
+                        LinuxSystem.shared.appendConsoleDownloadProgress(progress, start: start, generation: generation, epoch: epoch)
+                    }
+                }
+            },
+            onVerifying: {
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated {
+                        LinuxSystem.shared.appendConsoleStep("Verify", generation: generation)
+                    }
+                }
+            }
+        )
     }
 
-    private func appendConsoleProgress(fraction: Double?, detail: String?, generation: UInt64, epoch: UInt64) {
+    private func appendConsoleDownloadProgress(
+        _ progress: HTTPDownloadProgress,
+        start: ContinuousClock.Instant,
+        generation: UInt64,
+        epoch: UInt64
+    ) {
+        var meter = DownloadMeter(start: start)
+        if case let .download(current)? = openConsoleProgress?.meter {
+            meter = current
+        }
+        meter.update(progress)
+        updateConsoleProgress(.download(meter), generation: generation, epoch: epoch)
+    }
+
+    private func appendConsoleExtractionProgress(
+        _ fraction: Double,
+        start: ContinuousClock.Instant,
+        generation: UInt64,
+        epoch: UInt64
+    ) {
+        updateConsoleProgress(
+            .extraction(fraction: fraction, elapsed: start.duration(to: .now)),
+            generation: generation,
+            epoch: epoch
+        )
+    }
+
+    private func updateConsoleProgress(_ meter: ConsoleMeter, generation: UInt64, epoch: UInt64) {
         guard self.generation == generation, consoleProgressEpoch == epoch else { return }
-        var progress = openConsoleProgress ?? ConsoleProgress()
-        progress.fraction = fraction
-        progress.detail = detail
+        var progress = openConsoleProgress ?? ConsoleProgress(meter: meter)
+        progress.meter = meter
         openConsoleProgress = progress
         renderConsoleProgress()
     }
 
     private func renderConsoleProgress() {
         guard var progress = openConsoleProgress else { return }
-        let line = ConsoleProgressLine.render(
-            fraction: progress.fraction,
-            detail: progress.detail,
-            width: Int(setupTerminalSize.columns) - 1
-        )
-        let chunk = Data("\r\u{1B}[K\(line)".utf8)
+        let columns = Int(setupTerminalSize.columns)
+        let lines = progress.meter.lines(width: max(columns - 1, 20))
+        let snapshot = lines.joined(separator: "\r\n")
+        let rows = progress.lineLengths.reduce(0) { $0 + max(($1 + columns - 1) / columns, 1) }
+        let redraw = Data(("\r" + (rows > 1 ? "\u{1B}[\(rows - 1)A" : "") + "\u{1B}[J" + snapshot).utf8)
         if let chunkIndex = progress.chunkIndex {
-            consoleChunks[chunkIndex] = chunk
+            consoleChunks[chunkIndex] = Data(snapshot.utf8)
         } else {
             progress.chunkIndex = consoleChunks.count
-            consoleChunks.append(chunk)
+            consoleChunks.append(Data(snapshot.utf8))
         }
-        progress.lineLength = line.count
+        progress.lineLengths = lines.map(\.count)
         openConsoleProgress = progress
         for listener in consoleListeners.values {
-            listener(chunk)
+            listener(redraw)
         }
     }
 

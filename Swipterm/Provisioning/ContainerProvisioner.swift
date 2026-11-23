@@ -65,38 +65,57 @@ nonisolated enum ContainerProvisioner {
                 environment["SWIPTERM_SSH_AUTHORIZED_KEYS"] = ssh.authorizedKeys
             }
         }
-        if !developerTools.isEmpty || !software.agents.isEmpty {
+        let registries = software.registries
+        if !registries.isEmpty || distribution != nil {
+            await log(step("Mirrors"))
+        }
+        if !registries.isEmpty {
             let usesChinaMirrors = if let mirror = DistributionMirror.all.first(where: { $0.id == request.mirrorID }) {
                 mirror.region == .cn
             } else {
                 await DistributionMirrorRouter.regionDetector.region() == .cn
             }
-            if usesChinaMirrors {
-                environment["SWIPTERM_REGION"] = "cn"
+            for registry in registries {
+                let mirror = RegistryMirror.resolve(registry, id: software.registryMirrors[registry], usesChinaMirrors: usesChinaMirrors)
+                await log("    \(registry.displayName): \(mirror.name) (\(mirror.url))\r\n")
+                guard mirror.region != .global else { continue }
+                switch registry {
+                case .npm:
+                    environment["SWIPTERM_NPM_REGISTRY"] = mirror.url
+                    environment["SWIPTERM_NODE_DIST"] = mirror.distributionURL
+                case .go:
+                    environment["SWIPTERM_GOPROXY"] = mirror.url
+                    environment["SWIPTERM_GO_DIST"] = mirror.distributionURL
+                case .pypi:
+                    environment["SWIPTERM_PYPI_INDEX"] = mirror.url
+                case .crates:
+                    environment["SWIPTERM_CARGO_INDEX"] = mirror.url
+                    environment["SWIPTERM_RUSTUP_SERVER"] = mirror.distributionURL
+                }
             }
         }
 
         if let distribution, let release {
-            let source = await PackageMirrorResolver.resolve(for: distribution, release: release, mirrorID: request.mirrorID)
-            switch source {
-            case .upstream:
-                await log(step("Package repositories: upstream defaults"))
-            case let .mirror(name, root):
-                await log(step("Package repositories: \(name) (\(root.url))"))
+            let mirror = try await PackageMirrorResolver.resolve(for: distribution, release: release, mirrorID: request.mirrorID)
+            if let mirror {
+                await log("    \(distribution.displayName): \(mirror.name) (\(mirror.root.url))\r\n")
             }
             let configurator = PackageRepositoryConfigurator(fileSystem: runtime.fileSystem, distribution: distribution, release: release)
-            for path in try await configurator.apply(source) {
+            for path in try await configurator.apply(mirror) {
                 await log("    \(path)\r\n")
             }
+            let mirrorHost = mirror.flatMap { URL(string: $0.root.url)?.host() }
             if distribution == .nixos {
                 var substituters: [String]?
-                if case let .mirror(_, root) = source, root.url != DistributionMirror.official.packages[.nixos]?.url {
+                if let root = mirror?.root, root.url != DistributionMirror.official.packages[.nixos]?.url {
                     substituters = [root.url, officialNixCache]
                 }
+                let connectionLimit = mirrorHost?.hasSuffix(".edu.cn") == true ? 5 : nil
                 let module = nixOSSwiptermModule(
                     hostname: request.hostname,
                     user: request.user,
                     substituters: substituters,
+                    connectionLimit: connectionLimit,
                     stateVersion: release.versionID,
                     software: software
                 )
@@ -115,6 +134,9 @@ nonisolated enum ContainerProvisioner {
                 environment["NIX_PATH"] = nixPath
                 if let substituters {
                     environment["SWIPTERM_NIX_SUBSTITUTERS"] = substituters.joined(separator: " ")
+                }
+                if let connectionLimit {
+                    environment["SWIPTERM_NIX_CONNECTIONS"] = String(connectionLimit)
                 }
             }
         }
@@ -147,6 +169,7 @@ nonisolated enum ContainerProvisioner {
         hostname: String,
         user: String,
         substituters: [String]?,
+        connectionLimit: Int?,
         stateVersion: String?,
         software: ContainerSoftware
     ) -> String {
@@ -175,6 +198,10 @@ nonisolated enum ContainerProvisioner {
         ]
         if let substituters {
             lines.append("  nix.settings.substituters = \(list(substituters));")
+        }
+        if let connectionLimit {
+            lines.append("  nix.settings.http-connections = \(connectionLimit);")
+            lines.append("  nix.settings.max-substitution-jobs = \(connectionLimit);")
         }
 
         var userAttributes: [String] = []
@@ -214,12 +241,18 @@ nonisolated enum ContainerProvisioner {
         }
 
         let developerTools = software.installedDeveloperTools
-        let packages = DeveloperTool.allCases.filter(developerTools.contains).map { tool in
+        let packages = DeveloperTool.allCases.filter(developerTools.contains).flatMap { tool -> [String] in
             switch tool {
-            case .node: "nodejs_24"
-            case .pnpm: "pnpm"
-            case .bun: "bun"
-            case .go: "go"
+            case .buildEssentials: ["gcc", "gnumake"]
+            case .git: ["git"]
+            case .gnupg: ["gnupg"]
+            case .node: ["nodejs_24"]
+            case .npm: []
+            case .pnpm: ["pnpm"]
+            case .bun: ["bun"]
+            case .go: ["go"]
+            case .python: ["(python3.withPackages (ps: [ ps.pip ]))"]
+            case .rust: ["rustc", "cargo"]
             }
         }
         if !packages.isEmpty {
@@ -228,16 +261,15 @@ nonisolated enum ContainerProvisioner {
         if !software.agents.isEmpty {
             lines += ["", "  programs.nix-ld.enable = true;"]
         }
+        var extraInit = ["export PATH=\"$PATH:/run/host-bin\""]
         if !developerTools.isEmpty || !software.agents.isEmpty {
-            lines += [
-                "",
-                "  environment.localBinInPath = true;",
-                "  environment.extraInit = ''",
-                "    export PNPM_HOME=\"$HOME/.local/share/pnpm\"",
-                "    export PATH=\"$HOME/.bun/bin:$PNPM_HOME:$PNPM_HOME/bin:$HOME/go/bin:$PATH\"",
-                "  '';",
+            lines += ["", "  environment.localBinInPath = true;"]
+            extraInit = [
+                "export PNPM_HOME=\"$HOME/.local/share/pnpm\"",
+                "export PATH=\"$HOME/.cargo/bin:$HOME/.bun/bin:$PNPM_HOME:$PNPM_HOME/bin:$HOME/go/bin:$PATH:/run/host-bin\"",
             ]
         }
+        lines += ["", "  environment.extraInit = ''"] + extraInit.map { "    \($0)" } + ["  '';"]
 
         if user != "root" {
             lines += [
@@ -379,7 +411,11 @@ nonisolated enum ContainerProvisioner {
 
     npm_tarball() {
         fetch "$npm_registry/$1/$2" > "$work/package.json"
-        download "$(json_value tarball < "$work/package.json")" "$3"
+        tarball=$(json_value tarball < "$work/package.json")
+        case "$tarball" in
+        /*) tarball=$npm_registry$tarball ;;
+        esac
+        download "$tarball" "$3"
         integrity=$(json_value integrity < "$work/package.json")
         verify sha512 "$(printf '%s' "${integrity#sha512-}" | base64 -d | od -An -v -tx1 | tr -d ' \n')" "$3" "$1"
     }
@@ -390,7 +426,7 @@ nonisolated enum ContainerProvisioner {
 
     prepare_arch() {
         if [ -f /etc/locale.gen ] && have locale-gen; then
-            step "Generating the en_US.UTF-8 locale"
+            step "Locale"
             if ! grep -q '^en_US\.UTF-8 UTF-8' /etc/locale.gen; then
                 if grep -q '^#[[:space:]]*en_US\.UTF-8 UTF-8' /etc/locale.gen; then
                     sed -i 's/^#[[:space:]]*\(en_US\.UTF-8 UTF-8\)/\1/' /etc/locale.gen
@@ -400,7 +436,7 @@ nonisolated enum ContainerProvisioner {
             fi
             locale-gen
         fi
-        step "Initializing the pacman keyring"
+        step "Keyring"
         pacman-key --init
         if [ -f /usr/share/pacman/keyrings/archlinuxarm.gpg ]; then
             pacman-key --populate archlinuxarm
@@ -409,16 +445,21 @@ nonisolated enum ContainerProvisioner {
         fi
     }
 
+    prepare_dnf() {
+        grep -qs '^\[main\]' /etc/dnf/dnf.conf || printf '[main]\n' >> /etc/dnf/dnf.conf
+        set_option /etc/dnf/dnf.conf max_parallel_downloads 5
+    }
+
     prepare_alpine() {
         if ! have sudo; then
-            step "Installing sudo"
+            step "sudo"
             apk add --no-cache sudo
         fi
     }
 
     gentoo_sync() {
         if [ ! -d /var/db/repos/gentoo/profiles ]; then
-            step "Syncing the Gentoo ebuild repository"
+            step "Portage"
             emerge-webrsync
         fi
     }
@@ -426,7 +467,7 @@ nonisolated enum ContainerProvisioner {
     prepare_gentoo() {
         if ! have sudo; then
             gentoo_sync
-            step "Installing sudo"
+            step "sudo"
             emerge --getbinpkg --usepkg --noreplace app-admin/sudo
         fi
     }
@@ -462,7 +503,7 @@ nonisolated enum ContainerProvisioner {
             return 0
             ;;
         esac
-        step "Installing the Linux kernel"
+        step "Kernel"
         case "$SWIPTERM_DISTRIBUTION" in
         debian | devuan | kali | ubuntu)
             apt-get update
@@ -551,7 +592,7 @@ nonisolated enum ContainerProvisioner {
     }
 
     downloads_upstream() {
-        if want_agent antigravity; then
+        if want_agent codex || want_agent antigravity || want_tool rust; then
             return 0
         fi
         if want_tool go && ! go_from_packages; then
@@ -581,6 +622,38 @@ nonisolated enum ContainerProvisioner {
             *) add openssh-server ;;
             esac
         fi
+        if want_tool build-essentials; then
+            case "$SWIPTERM_DISTRIBUTION" in
+            alpine) add build-base ;;
+            arch | void) add base-devel ;;
+            debian | devuan | kali | ubuntu) add build-essential ;;
+            gentoo) ;;
+            *) add gcc gcc-c++ make ;;
+            esac
+        fi
+        if want_tool git && ! have git; then
+            case "$SWIPTERM_DISTRIBUTION" in
+            gentoo) add dev-vcs/git ;;
+            *) add git ;;
+            esac
+        fi
+        if want_tool gnupg && ! have gpg; then
+            case "$SWIPTERM_DISTRIBUTION" in
+            alma | centos | fedora | openEuler | oracle | rocky) add gnupg2 ;;
+            openSUSE) add gpg2 ;;
+            gentoo) add app-crypt/gnupg ;;
+            *) add gnupg ;;
+            esac
+        fi
+        if want_tool python; then
+            case "$SWIPTERM_DISTRIBUTION" in
+            alpine) add python3 py3-pip ;;
+            arch) add python python-pip ;;
+            debian | devuan | kali | ubuntu) add python3 python3-pip python3-venv ;;
+            gentoo) add dev-python/pip ;;
+            *) add python3 python3-pip ;;
+            esac
+        fi
         if want_tool go && go_from_packages; then
             case "$SWIPTERM_DISTRIBUTION" in
             alma | centos | fedora | oracle | rocky) add golang ;;
@@ -594,9 +667,14 @@ nonisolated enum ContainerProvisioner {
                 case "$SWIPTERM_DISTRIBUTION" in
                 gentoo) add net-libs/nodejs ;;
                 openSUSE) ;;
-                void) add nodejs ;;
-                *) add nodejs npm ;;
+                *) add nodejs ;;
                 esac
+                if want_tool npm; then
+                    case "$SWIPTERM_DISTRIBUTION" in
+                    gentoo | openSUSE | void) ;;
+                    *) add npm ;;
+                    esac
+                fi
             else
                 case "$SWIPTERM_DISTRIBUTION" in
                 alma | centos | fedora | openEuler | oracle | rocky) add libatomic ;;
@@ -669,9 +747,15 @@ nonisolated enum ContainerProvisioner {
     }
 
     install_opensuse_node() {
-        step "Installing Node.js"
-        zypper --non-interactive install --no-recommends nodejs24 npm24 ||
-            zypper --non-interactive install --no-recommends nodejs-default npm-default
+        step "Node.js"
+        opensuse_node_pkgs=nodejs24
+        opensuse_fallback_pkgs=nodejs-default
+        if want_tool npm; then
+            opensuse_node_pkgs="$opensuse_node_pkgs npm24"
+            opensuse_fallback_pkgs="$opensuse_fallback_pkgs npm-default"
+        fi
+        zypper --non-interactive install --no-recommends $opensuse_node_pkgs ||
+            zypper --non-interactive install --no-recommends $opensuse_fallback_pkgs
         for tool in node npm npx; do
             if ! have "$tool" && [ -x "/usr/bin/${tool}24" ]; then
                 ln -s "${tool}24" "/usr/bin/$tool"
@@ -683,11 +767,8 @@ nonisolated enum ContainerProvisioner {
         if ! want_tool go || go_from_packages; then
             return 0
         fi
-        step "Installing Go"
-        base=https://go.dev/dl
-        if [ "${SWIPTERM_REGION:-}" = cn ]; then
-            base=https://golang.google.cn/dl
-        fi
+        step "Go"
+        base=${SWIPTERM_GO_DIST:-https://go.dev/dl}
         fetch "$base/?mode=json" > "$work/go.json"
         archive=$(sed -n 's/.*"filename"[[:space:]]*:[[:space:]]*"\(go[^"]*\.linux-arm64\.tar\.gz\)".*/\1/p' "$work/go.json" | head -n 1)
         sha256=$(sed -n "/\"$archive\"/,/\"sha256\"/s/.*\"sha256\"[[:space:]]*:[[:space:]]*\"\([0-9a-f]*\)\".*/\1/p" "$work/go.json" | head -n 1)
@@ -701,11 +782,8 @@ nonisolated enum ContainerProvisioner {
         if ! want_tool node || has_recent_packages; then
             return 0
         fi
-        step "Installing Node.js 24 LTS"
-        base=https://nodejs.org/dist/latest-v24.x
-        if [ "${SWIPTERM_REGION:-}" = cn ]; then
-            base=https://mirrors.tuna.tsinghua.edu.cn/nodejs-release/latest-v24.x
-        fi
+        step "Node.js"
+        base=${SWIPTERM_NODE_DIST:-https://nodejs.org/dist}/latest-v24.x
         fetch "$base/SHASUMS256.txt" > "$work/SHASUMS256.txt"
         checksum=$(grep ' node-v[0-9.]*-linux-arm64\.tar\.gz$' "$work/SHASUMS256.txt" | head -n 1)
         archive=${checksum##* }
@@ -713,6 +791,9 @@ nonisolated enum ContainerProvisioner {
         verify sha256 "${checksum%% *}" "$work/$archive" "$archive"
         tar -xzf "$work/$archive" -C "$work"
         node=$work/${archive%.tar.gz}
+        if ! want_tool npm; then
+            rm -rf "$node/bin/npm" "$node/bin/npx" "$node/bin/corepack" "$node/lib/node_modules"
+        fi
         cp -R "$node/bin" "$node/include" "$node/lib" "$node/share" /usr/local/
     }
 
@@ -720,7 +801,7 @@ nonisolated enum ContainerProvisioner {
         if ! want_tool pnpm || [ "$SWIPTERM_DISTRIBUTION" = arch ]; then
             return 0
         fi
-        step "Installing pnpm"
+        step "pnpm"
         fetch "$npm_registry/@pnpm/exe/latest" > "$work/pnpm.json"
         version=$(json_value version < "$work/pnpm.json")
         [ -n "$version" ] || fail "Could not resolve the latest version of pnpm."
@@ -737,7 +818,7 @@ nonisolated enum ContainerProvisioner {
         if ! want_tool bun || [ "$SWIPTERM_DISTRIBUTION" = arch ]; then
             return 0
         fi
-        step "Installing Bun"
+        step "Bun"
         fetch "$npm_registry/bun/latest" > "$work/bun.json"
         version=$(json_value version < "$work/bun.json")
         [ -n "$version" ] || fail "Could not resolve the latest version of Bun."
@@ -751,7 +832,7 @@ nonisolated enum ContainerProvisioner {
     install_software() {
         collect_packages
         if [ -n "$packages" ]; then
-            step "Installing$packages"
+            step "Packages"
             install_packages $packages
         fi
         if [ "$SWIPTERM_DISTRIBUTION" = openSUSE ] && want_tool node; then
@@ -767,7 +848,6 @@ nonisolated enum ContainerProvisioner {
         template=$1
         [ "$template" != "$user" ] || return 0
         id "$template" >/dev/null 2>&1 || return 0
-        step "Removing the template user $template"
         userdel -r "$template" || true
         if id "$template" >/dev/null 2>&1; then
             fail "Could not remove the template user $template."
@@ -825,9 +905,7 @@ nonisolated enum ContainerProvisioner {
             if [ "$uid" -lt 1000 ] || [ "$uid" -ge 60000 ]; then
                 fail "$user is a system account. Choose another username."
             fi
-            step "Configuring the user $user"
         else
-            step "Creating the user $user"
             if have useradd; then
                 useradd --create-home --shell "$shell" "$user"
             else
@@ -852,7 +930,6 @@ nonisolated enum ContainerProvisioner {
 
     configure_sudo() {
         have sudo || return 0
-        step "Allowing $user to use sudo without a password"
         sudoers=/etc/sudoers
         if [ ! -e "$sudoers" ] && [ -e /usr/etc/sudoers ]; then
             sudoers=/usr/etc/sudoers
@@ -885,7 +962,6 @@ nonisolated enum ContainerProvisioner {
 
     configure_doas() {
         have doas || return 0
-        step "Allowing $user to use doas without a password"
         mkdir -p /etc/doas.d
         chown 0:0 /etc/doas.d
         chmod 0755 /etc/doas.d
@@ -913,18 +989,27 @@ nonisolated enum ContainerProvisioner {
             ;;
         nushell)
             as_user 'mkdir -p "$HOME/.config/nushell" && touch "$HOME/.config/nushell/env.nu" "$HOME/.config/nushell/config.nu"'
-            if [ -n "${SWIPTERM_TOOLS:-}${SWIPTERM_AGENTS:-}" ] && [ ! -s "$user_home/.config/nushell/config.nu" ]; then
-                cat > "$user_home/.config/nushell/config.nu" <<'EOF'
+            nu_config=$user_home/.config/nushell/config.nu
+            if [ -n "${SWIPTERM_TOOLS:-}${SWIPTERM_AGENTS:-}" ] && [ ! -s "$nu_config" ]; then
+                cat > "$nu_config" <<'EOF'
     $env.PNPM_HOME = ($env.HOME | path join ".local" "share" "pnpm")
     $env.PATH = ($env.PATH | split row (char esep) | prepend [
         ($env.HOME | path join ".local" "bin")
         ($env.HOME | path join ".bun" "bin")
+        ($env.HOME | path join ".cargo" "bin")
         $env.PNPM_HOME
         ($env.PNPM_HOME | path join "bin")
         ($env.HOME | path join "go" "bin")
         "/usr/local/go/bin"
     ] | uniq)
     EOF
+                if [ -n "${SWIPTERM_RUSTUP_SERVER:-}" ]; then
+                    printf '$env.RUSTUP_DIST_SERVER = "%s"\n$env.RUSTUP_UPDATE_ROOT = "%s/rustup"\n' \
+                        "$SWIPTERM_RUSTUP_SERVER" "$SWIPTERM_RUSTUP_SERVER" >> "$nu_config"
+                fi
+            fi
+            if ! grep -qF /run/host-bin "$nu_config"; then
+                printf '%s\n' '$env.PATH = ($env.PATH | split row (char esep) | append "/run/host-bin" | uniq)' >> "$nu_config"
             fi
             ;;
         esac
@@ -937,7 +1022,6 @@ nonisolated enum ContainerProvisioner {
             printf '%s\n' "$shell" >> /etc/shells
         fi
         if [ "$(getent passwd "$user" | cut -d : -f 7)" != "$shell" ]; then
-            step "Changing the login shell of $user to $shell"
             if have usermod; then
                 usermod -s "$shell" "$user"
             else
@@ -949,7 +1033,7 @@ nonisolated enum ContainerProvisioner {
 
     configure_ssh() {
         [ -n "${SWIPTERM_SSH_PORT:-}" ] || return 0
-        step "Configuring the SSH server on port $SWIPTERM_SSH_PORT"
+        step "SSH"
         mkdir -p /run/sshd
         ssh-keygen -A
         sshd_bin=$(command -v sshd)
@@ -1036,15 +1120,25 @@ nonisolated enum ContainerProvisioner {
     }
 
     configure_path() {
+        case "$SWIPTERM_DISTRIBUTION" in
+        debian | devuan | kali | ubuntu)
+            if [ -e /etc/zsh/zprofile ] || have zsh; then
+                line='emulate sh -c '\''for swipterm_profile in /etc/profile.d/*.sh; do [ -r "$swipterm_profile" ] && . "$swipterm_profile"; done; unset swipterm_profile'\'
+                mkdir -p /etc/zsh
+                if ! grep -qxF "$line" /etc/zsh/zprofile 2>/dev/null; then
+                    printf '%s\n' "$line" >> /etc/zsh/zprofile
+                fi
+            fi
+            ;;
+        esac
         if [ -z "${SWIPTERM_TOOLS:-}${SWIPTERM_AGENTS:-}" ]; then
             return 0
         fi
-        step "Adding the developer tools to PATH"
         mkdir -p /etc/profile.d /etc/fish/conf.d
         cat > /etc/profile.d/swipterm.sh <<'EOF'
     PNPM_HOME="$HOME/.local/share/pnpm"
     export PNPM_HOME
-    for swipterm_path in /usr/local/go/bin "$HOME/go/bin" "$PNPM_HOME/bin" "$PNPM_HOME" "$HOME/.bun/bin" "$HOME/.local/bin"; do
+    for swipterm_path in /usr/local/go/bin "$HOME/go/bin" "$PNPM_HOME/bin" "$PNPM_HOME" "$HOME/.bun/bin" "$HOME/.cargo/bin" "$HOME/.local/bin"; do
         case ":$PATH:" in
         *":$swipterm_path:"*) ;;
         *) PATH="$swipterm_path:$PATH" ;;
@@ -1055,29 +1149,67 @@ nonisolated enum ContainerProvisioner {
     EOF
         cat > /etc/fish/conf.d/swipterm.fish <<'EOF'
     set -gx PNPM_HOME $HOME/.local/share/pnpm
-    for swipterm_path in /usr/local/go/bin $HOME/go/bin $PNPM_HOME/bin $PNPM_HOME $HOME/.bun/bin $HOME/.local/bin
+    for swipterm_path in /usr/local/go/bin $HOME/go/bin $PNPM_HOME/bin $PNPM_HOME $HOME/.bun/bin $HOME/.cargo/bin $HOME/.local/bin
         contains -- $swipterm_path $PATH
         or set -gx PATH $swipterm_path $PATH
     end
     EOF
-        case "$SWIPTERM_DISTRIBUTION" in
-        debian | devuan | kali | ubuntu)
-            if [ -e /etc/zsh/zprofile ] || have zsh; then
-                line="emulate sh -c '. /etc/profile.d/swipterm.sh'"
-                mkdir -p /etc/zsh
-                if ! grep -qxF "$line" /etc/zsh/zprofile 2>/dev/null; then
-                    printf '%s\n' "$line" >> /etc/zsh/zprofile
-                fi
-            fi
-            ;;
-        esac
+        if [ -n "${SWIPTERM_RUSTUP_SERVER:-}" ]; then
+            printf 'RUSTUP_DIST_SERVER=%s\nRUSTUP_UPDATE_ROOT=%s/rustup\nexport RUSTUP_DIST_SERVER RUSTUP_UPDATE_ROOT\n' \
+                "$SWIPTERM_RUSTUP_SERVER" "$SWIPTERM_RUSTUP_SERVER" >> /etc/profile.d/swipterm.sh
+            printf 'set -gx RUSTUP_DIST_SERVER %s\nset -gx RUSTUP_UPDATE_ROOT %s/rustup\n' \
+                "$SWIPTERM_RUSTUP_SERVER" "$SWIPTERM_RUSTUP_SERVER" >> /etc/fish/conf.d/swipterm.fish
+        fi
+    }
+
+    write_user_config() {
+        printf '    ~/%s\n' "$1"
+        as_user "mkdir -p \"\$HOME/$(dirname "$1")\" && cat > \"\$HOME/$1\""
+    }
+
+    configure_mirrors() {
+        if [ -z "${SWIPTERM_NPM_REGISTRY:-}${SWIPTERM_GOPROXY:-}${SWIPTERM_PYPI_INDEX:-}${SWIPTERM_CARGO_INDEX:-}" ]; then
+            return 0
+        fi
+        if [ -n "${SWIPTERM_NPM_REGISTRY:-}" ]; then
+            printf 'registry=%s/\n' "$SWIPTERM_NPM_REGISTRY" | write_user_config .npmrc
+        fi
+        if [ -n "${SWIPTERM_GOPROXY:-}" ]; then
+            printf 'GOPROXY=%s,direct\n' "$SWIPTERM_GOPROXY" | write_user_config .config/go/env
+        fi
+        if [ -n "${SWIPTERM_PYPI_INDEX:-}" ]; then
+            printf '[global]\nindex-url = %s\n' "$SWIPTERM_PYPI_INDEX" | write_user_config .config/pip/pip.conf
+        fi
+        if [ -n "${SWIPTERM_CARGO_INDEX:-}" ]; then
+            printf '[source.crates-io]\nreplace-with = "mirror"\n\n[source.mirror]\nregistry = "sparse+%s/"\n' \
+                "$SWIPTERM_CARGO_INDEX" | write_user_config .cargo/config.toml
+        fi
+    }
+
+    install_rust() {
+        if ! want_tool rust; then
+            return 0
+        fi
+        step "Rust"
+        rustup_server=${SWIPTERM_RUSTUP_SERVER:-https://static.rust-lang.org}
+        target=aarch64-unknown-linux-gnu
+        if [ "$SWIPTERM_DISTRIBUTION" = alpine ]; then
+            target=aarch64-unknown-linux-musl
+        fi
+        download "$rustup_server/rustup/dist/$target/rustup-init" "$work/rustup-init"
+        verify sha256 "$(fetch "$rustup_server/rustup/dist/$target/rustup-init.sha256" | cut -d ' ' -f 1)" "$work/rustup-init" rustup-init
+        rustup_dir=$(mktemp -d /tmp/swipterm-rustup.XXXXXX)
+        chown "$user:$user_group" "$rustup_dir"
+        install -m 0755 "$work/rustup-init" "$rustup_dir/rustup-init"
+        as_user "\"$rustup_dir/rustup-init\" -y --profile minimal --no-modify-path"
+        rm -rf "$rustup_dir"
     }
 
     install_antigravity() {
         if ! want_agent antigravity; then
             return 0
         fi
-        step "Installing Antigravity CLI for $user"
+        step "Antigravity"
         platform=linux_arm64
         if [ "$SWIPTERM_DISTRIBUTION" = alpine ]; then
             platform=linux_arm64_musl
@@ -1092,39 +1224,44 @@ nonisolated enum ContainerProvisioner {
         as_user '"$HOME/.local/bin/agy" install' || true
     }
 
+    install_codex() {
+        if ! want_agent codex; then
+            return 0
+        fi
+        step "Codex"
+        fetch "$npm_registry/@openai/codex/latest" > "$work/codex.json"
+        version=$(json_value version < "$work/codex.json")
+        [ -n "$version" ] || fail "Could not resolve the latest version of Codex."
+        npm_tarball @openai/codex "$version-linux-arm64" "$work/codex.tgz"
+        standalone=$user_home/.codex/packages/standalone
+        release=$standalone/releases/$version-aarch64-unknown-linux-musl
+        as_user "mkdir -p \"$release\" \"\$HOME/.local/bin\" &&
+            tar -xzf - -C \"$release\" --strip-components=3 &&
+            ln -sfn \"$release\" \"$standalone/current\" &&
+            ln -sf \"$standalone/current/bin/codex\" \"\$HOME/.local/bin/codex\"" < "$work/codex.tgz"
+        if [ "$SWIPTERM_DISTRIBUTION" = alpine ]; then
+            as_user "ln -sf /usr/bin/rg \"$release/codex-path/rg\""
+        fi
+        write_user_config .codex/config.toml <<'EOF'
+    check_for_update_on_startup = false
+
+    [features]
+    daemon_auto_start = false
+    EOF
+    }
+
     install_agents() {
-        packages=
         if want_agent claude-code; then
-            packages="$packages @anthropic-ai/claude-code"
-        fi
-        if want_agent codex; then
-            packages="$packages @openai/codex"
-        fi
-        if [ -n "$packages" ]; then
-            step "Installing$packages for $user"
+            step "Claude Code"
             if want_tool pnpm; then
-                build=
-                if want_agent claude-code; then
-                    build=" --allow-build=@anthropic-ai/claude-code"
-                fi
-                as_user "pnpm add --global --registry=$npm_registry$build$packages"
+                as_user "pnpm add --global --registry=$npm_registry --allow-build=@anthropic-ai/claude-code @anthropic-ai/claude-code"
             elif want_tool bun; then
-                trust=
-                if want_agent claude-code; then
-                    trust=" --trust"
-                fi
-                as_user "bun add --global$trust --registry=$npm_registry$packages"
+                as_user "bun add --global --trust --registry=$npm_registry @anthropic-ai/claude-code"
             else
-                as_user "npm install --global --prefix \"\$HOME/.local\" --registry=$npm_registry$packages"
-            fi
-            if [ "$SWIPTERM_DISTRIBUTION" = alpine ] && want_agent codex; then
-                for directory in "$user_home/.local" "$user_home/.bun"; do
-                    if [ -d "$directory" ]; then
-                        find "$directory" -type f -name rg -path '*/vendor/*' -exec ln -sf /usr/bin/rg {} \;
-                    fi
-                done
+                as_user "npm install --global --prefix \"\$HOME/.local\" --registry=$npm_registry @anthropic-ai/claude-code"
             fi
         fi
+        install_codex
         install_antigravity
     }
 
@@ -1144,30 +1281,33 @@ nonisolated enum ContainerProvisioner {
     if [ "$SWIPTERM_DISTRIBUTION" = alpine ]; then
         musl=-musl
     fi
-    npm_registry=https://registry.npmjs.org
-    if [ "${SWIPTERM_REGION:-}" = cn ]; then
-        npm_registry=https://registry.npmmirror.com
-    fi
+    npm_registry=${SWIPTERM_NPM_REGISTRY:-https://registry.npmjs.org}
 
     case "$SWIPTERM_DISTRIBUTION" in
     nixos)
-        step "Applying the NixOS configuration"
+        step "NixOS"
+        set -- switch
         if [ -n "${SWIPTERM_NIX_SUBSTITUTERS:-}" ]; then
-            nixos-rebuild switch --option substituters "$SWIPTERM_NIX_SUBSTITUTERS"
-        else
-            nixos-rebuild switch
+            set -- "$@" --option substituters "$SWIPTERM_NIX_SUBSTITUTERS"
         fi
+        if [ -n "${SWIPTERM_NIX_CONNECTIONS:-}" ]; then
+            set -- "$@" --option http-connections "$SWIPTERM_NIX_CONNECTIONS" \
+                --option max-substitution-jobs "$SWIPTERM_NIX_CONNECTIONS"
+        fi
+        nixos-rebuild "$@"
         if [ -n "${SWIPTERM_PASSWORD:-}" ]; then
             printf '%s:%s\n' "$user" "$SWIPTERM_PASSWORD" | chpasswd
         fi
         load_user
         create_shell_config
+        configure_mirrors
         install_agents
         step "Done"
         exit 0
         ;;
     arch) prepare_arch ;;
     alpine) prepare_alpine ;;
+    alma | centos | fedora | openEuler | oracle | rocky) prepare_dnf ;;
     gentoo) prepare_gentoo ;;
     esac
 
@@ -1190,7 +1330,6 @@ nonisolated enum ContainerProvisioner {
         configure_sudo
         configure_doas
     elif [ -n "${SWIPTERM_PASSWORD:-}" ]; then
-        step "Setting the password of root"
         printf 'root:%s\n' "$SWIPTERM_PASSWORD" | chpasswd
     fi
 
@@ -1198,6 +1337,8 @@ nonisolated enum ContainerProvisioner {
     configure_login_shell
     configure_ssh
     configure_path
+    configure_mirrors
+    install_rust
     install_agents
 
     step "Done"

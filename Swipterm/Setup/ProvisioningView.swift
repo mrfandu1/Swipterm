@@ -8,12 +8,12 @@ struct ProvisioningView: View {
     private let system = LinuxSystem.shared
 
     @State private var terminal = SetupTerminal()
-    @Environment(\.colorScheme) private var colorScheme
+    @State private var isPresentingFailure = false
 
     var body: some View {
         ZStack {
             backgroundColor
-                .ignoresSafeArea(edges: [.horizontal, .bottom])
+                .ignoresSafeArea()
             TerminalSurfaceView(
                 surfaceView: terminal.surfaceView,
                 state: terminal.state,
@@ -25,14 +25,7 @@ struct ProvisioningView: View {
                     .controlSize(.large)
             }
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if let failure = provisioning.failure {
-                failureCard(failure)
-                    .environment(\.colorScheme, overlayColorScheme)
-            }
-        }
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(.visible, for: .navigationBar)
         .toolbar {
             if provisioning.failure == nil {
                 ToolbarItem(placement: .cancellationAction) {
@@ -40,7 +33,40 @@ struct ProvisioningView: View {
                         system.reset()
                     }
                 }
+            } else {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Back to Setup", role: .destructive) {
+                        system.reset()
+                    }
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Copy Output", systemImage: "doc.on.doc") {
+                        UIPasteboard.general.string = system.consoleText
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Retry") {
+                        system.retrySetup()
+                    }
+                }
             }
+        }
+        .alert("Setup Failed", isPresented: $isPresentingFailure, presenting: provisioning.failure) { _ in
+            Button("Retry") {
+                system.retrySetup()
+            }
+            Button("Copy Output") {
+                UIPasteboard.general.string = system.consoleText
+            }
+            Button("Back to Setup", role: .destructive) {
+                system.reset()
+            }
+            Button("OK", role: .cancel) {}
+        } message: { failure in
+            Text(failure)
+        }
+        .onChange(of: provisioning.failure, initial: true) { _, failure in
+            isPresentingFailure = failure != nil
         }
         .onAppear {
             terminal.attach()
@@ -50,76 +76,11 @@ struct ProvisioningView: View {
         }
     }
 
-    private func failureCard(_ failure: String) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label {
-                Text(failure)
-                    .textSelection(.enabled)
-            } icon: {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.red)
-            }
-            .font(.callout)
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 12) {
-                    backButton
-                    Spacer(minLength: 0)
-                    copyButton
-                    retryButton
-                }
-                VStack(spacing: 8) {
-                    retryButton
-                        .frame(maxWidth: .infinity)
-                    HStack(spacing: 8) {
-                        copyButton
-                            .frame(maxWidth: .infinity)
-                        backButton
-                            .frame(maxWidth: .infinity)
-                    }
-                }
-            }
-        }
-        .padding()
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .padding()
-    }
-
-    private var retryButton: some View {
-        Button("Retry") {
-            system.retrySetup()
-        }
-        .buttonStyle(.borderedProminent)
-    }
-
-    private var copyButton: some View {
-        Button("Copy Output") {
-            UIPasteboard.general.string = system.consoleText
-        }
-        .buttonStyle(.bordered)
-    }
-
-    private var backButton: some View {
-        Button("Back to Setup", role: .destructive) {
-            system.reset()
-        }
-        .buttonStyle(.bordered)
-    }
-
     private var backgroundColor: Color {
         if let terminalColor = terminal.backgroundColor {
             return Color(terminalColor)
         }
         return Color(uiColor: .systemBackground)
-    }
-
-    private var overlayColorScheme: ColorScheme {
-        guard let terminalColor = terminal.backgroundColor else {
-            return colorScheme
-        }
-        let luminance = 0.2126 * Double(terminalColor.red)
-            + 0.7152 * Double(terminalColor.green)
-            + 0.0722 * Double(terminalColor.blue)
-        return luminance < 128 ? .dark : .light
     }
 }
 

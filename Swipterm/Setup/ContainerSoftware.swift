@@ -46,31 +46,37 @@ nonisolated struct SSHServer: Codable, Equatable, Sendable {
 }
 
 nonisolated enum DeveloperTool: String, Codable, CaseIterable, Sendable {
+    case buildEssentials = "build-essentials"
+    case git
+    case gnupg
     case node
+    case npm
     case pnpm
     case bun
     case go
+    case python
+    case rust
 
     var displayName: String {
         switch self {
-        case .node: "Node.js (npm)"
-        case .pnpm: "pnpm"
-        case .bun: "Bun"
-        case .go: "Go"
-        }
-    }
-
-    var shortName: String {
-        switch self {
+        case .buildEssentials: String(localized: "Build Essentials")
+        case .git: "Git"
+        case .gnupg: "GnuPG"
         case .node: "Node.js"
+        case .npm: "npm"
         case .pnpm: "pnpm"
         case .bun: "Bun"
         case .go: "Go"
+        case .python: "Python"
+        case .rust: "Rust"
         }
     }
 
-    var isJavaScriptToolchain: Bool {
-        self != .go
+    var isJavaScriptPackageManager: Bool {
+        switch self {
+        case .npm, .pnpm, .bun: true
+        default: false
+        }
     }
 }
 
@@ -87,16 +93,8 @@ nonisolated enum CodingAgent: String, Codable, CaseIterable, Sendable {
         }
     }
 
-    var shortName: String {
-        switch self {
-        case .claudeCode: "Claude Code"
-        case .codex: "Codex"
-        case .antigravity: "Antigravity"
-        }
-    }
-
     var isJavaScriptPackage: Bool {
-        self != .antigravity
+        self == .claudeCode
     }
 }
 
@@ -105,18 +103,47 @@ nonisolated struct ContainerSoftware: Codable, Equatable, Sendable {
     var ssh: SSHServer?
     var developerTools: Set<DeveloperTool> = []
     var agents: Set<CodingAgent> = []
+    var registryMirrors: [PackageRegistry: String] = [:]
 
     var installedDeveloperTools: Set<DeveloperTool> {
         agents.contains(where: \.isJavaScriptPackage) ? developerTools.union([.node]) : developerTools
     }
 
+    var registries: [PackageRegistry] {
+        let tools = installedDeveloperTools
+        return PackageRegistry.allCases.filter { registry in
+            switch registry {
+            case .npm: tools.contains(.node) || tools.contains(where: \.isJavaScriptPackageManager) || agents.contains(.codex)
+            case .go: tools.contains(.go)
+            case .pypi: tools.contains(.python)
+            case .crates: tools.contains(.rust)
+            }
+        }
+    }
+
     mutating func setDeveloperTool(_ tool: DeveloperTool, isEnabled: Bool) {
         if isEnabled {
             developerTools.insert(tool)
+            switch tool {
+            case .npm:
+                developerTools.insert(.node)
+            case .rust:
+                developerTools.insert(.buildEssentials)
+            default:
+                break
+            }
         } else {
             developerTools.remove(tool)
+            switch tool {
+            case .node:
+                developerTools.remove(.npm)
+            case .buildEssentials:
+                developerTools.remove(.rust)
+            default:
+                break
+            }
         }
-        if !developerTools.contains(where: \.isJavaScriptToolchain) {
+        if !developerTools.contains(where: \.isJavaScriptPackageManager) {
             agents = agents.filter { !$0.isJavaScriptPackage }
         }
     }
@@ -127,17 +154,13 @@ nonisolated struct ContainerSoftware: Codable, Equatable, Sendable {
             return
         }
         agents.insert(agent)
-        if agent.isJavaScriptPackage, !developerTools.contains(where: \.isJavaScriptToolchain) {
+        if agent.isJavaScriptPackage, !developerTools.contains(where: \.isJavaScriptPackageManager) {
             developerTools.insert(.pnpm)
         }
     }
 }
 
 nonisolated extension LinuxDistribution {
-    var defaultShell: LoginShell {
-        self == .alpine ? .ash : .bash
-    }
-
     func shells(for release: LinuxReleaseImage?) -> [LoginShell] {
         switch self {
         case .alpine:

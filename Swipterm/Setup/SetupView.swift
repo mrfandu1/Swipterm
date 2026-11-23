@@ -2,13 +2,30 @@ import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 
-struct SetupView: View {
-    private enum Source: Hashable {
+struct SetupDraft {
+    enum Source: Hashable {
         case distribution(LinuxDistribution)
         case localArchive
         case archiveURL
     }
 
+    var source = Source.distribution(.alpine)
+    var containerName = LinuxDistribution.alpine.defaultContainerName
+    var lastAutoContainerName = LinuxDistribution.alpine.defaultContainerName
+    var selectedReleaseID: String?
+    var initMode = ContainerInitMode.managed
+    var mirrorID = ""
+    var customFileURL: URL?
+    var customRemoteURLText = ""
+    var usesRootUser = false
+    var username = ""
+    var lastAutoUsername = ""
+    var password = ""
+    var software = ContainerSoftware(shell: .bash)
+    var ssh = SetupSSH()
+}
+
+struct SetupView: View {
     private enum Field {
         case name
         case archiveURL
@@ -16,33 +33,22 @@ struct SetupView: View {
         case password
     }
 
+    @Binding var draft: SetupDraft
+
     private let catalog = LinuxDistributionCatalogStore.shared
     private let system = LinuxSystem.shared
 
-    @State private var source: Source = .distribution(.alpine)
-    @State private var containerName = LinuxDistribution.alpine.defaultContainerName
-    @State private var lastAutoContainerName = LinuxDistribution.alpine.defaultContainerName
-    @State private var selectedReleaseID: String?
-    @State private var initMode: ContainerInitMode = .managed
-    @State private var mirrorID = ""
-    @State private var customFileURL: URL?
-    @State private var customRemoteURLText = ""
     @State private var showFileImporter = false
-    @State private var usesRootUser = false
-    @State private var username = ""
-    @State private var lastAutoUsername = ""
-    @State private var password = ""
     @State private var localHostName = LocalHostName()
-    @State private var software = ContainerSoftware()
-    @State private var ssh = SetupSSH()
     @State private var errorMessage: String?
+    @State private var catalogFailure: String?
     @FocusState private var focusedField: Field?
 
     var body: some View {
         Form {
             Section {
                 LabeledContent("Name") {
-                    TextField("Name", text: $containerName, prompt: Text(verbatim: "linux"))
+                    TextField("Name", text: $draft.containerName, prompt: Text(verbatim: "linux"))
                         .focused($focusedField, equals: .name)
                         .labelsHidden()
                         .multilineTextAlignment(.trailing)
@@ -50,23 +56,23 @@ struct SetupView: View {
                         .textInputAutocapitalization(.never)
                 }
 
-                Picker("Source", selection: clearingFocus($source)) {
+                Picker("Distribution", selection: clearingFocus($draft.source)) {
                     ForEach(LinuxDistribution.allCases) { distribution in
                         Text(verbatim: distribution.displayName)
-                            .tag(Source.distribution(distribution))
+                            .tag(SetupDraft.Source.distribution(distribution))
                     }
-                    Section {
+                    Section("Custom") {
                         Text("Local Archive")
-                            .tag(Source.localArchive)
+                            .tag(SetupDraft.Source.localArchive)
                         Text("Archive URL")
-                            .tag(Source.archiveURL)
+                            .tag(SetupDraft.Source.archiveURL)
                     }
                 }
 
-                switch source {
+                switch draft.source {
                 case let .distribution(distribution):
                     SetupReleasePicker(
-                        selectedReleaseID: clearingFocus($selectedReleaseID),
+                        selectedReleaseID: clearingFocus($draft.selectedReleaseID),
                         loadState: catalog.loadState,
                         releases: catalog.releases(for: distribution),
                         onRetryCatalog: {
@@ -79,105 +85,62 @@ struct SetupView: View {
                         showFileImporter = true
                     } label: {
                         LabeledContent("Archive") {
-                            Text(customFileURL?.lastPathComponent ?? String(localized: "Choose File…"))
-                                .foregroundStyle(customFileURL == nil ? .secondary : .primary)
+                            Text(draft.customFileURL?.lastPathComponent ?? String(localized: "Choose File…"))
+                                .foregroundStyle(draft.customFileURL == nil ? .secondary : .primary)
                                 .lineLimit(1)
                         }
                     }
                     .foregroundStyle(.primary)
                 case .archiveURL:
-                    TextField("Archive URL", text: $customRemoteURLText, prompt: Text(verbatim: "https://example.com/rootfs.tar.xz"))
+                    TextField("Archive URL", text: $draft.customRemoteURLText, prompt: Text(verbatim: "https://example.com/rootfs.tar.xz"))
                         .focused($focusedField, equals: .archiveURL)
                         .keyboardType(.URL)
                         .textContentType(.URL)
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                 }
-            } footer: {
-                if case .distribution = source, case let .failed(message) = catalog.loadState {
-                    Text(message)
-                        .foregroundStyle(.red)
+            }
+
+            Section("Configuration") {
+                let mirrors = availableMirrors
+                if mirrors.count > 1 {
+                    SetupMirrorPicker(mirrors: mirrors, mirrorID: clearingFocus($draft.mirrorID))
+                }
+                if showsStartupModePicker {
+                    StartupModePicker(selection: clearingFocus($draft.initMode))
+                }
+                NavigationLink {
+                    SetupSoftwareView(
+                        software: $draft.software,
+                        ssh: $draft.ssh,
+                        shells: selectedDistribution?.shells(for: selectedRelease) ?? []
+                    )
+                } label: {
+                    LabeledContent("Software", value: softwareSummary)
                 }
             }
 
-            let mirrors = availableMirrors
-            if mirrors.count > 1 || showsStartupModePicker {
-                Section("Configuration") {
-                    if mirrors.count > 1 {
-                        SetupMirrorPicker(mirrors: mirrors, mirrorID: clearingFocus($mirrorID))
-                    }
-                    if showsStartupModePicker {
-                        StartupModePicker(selection: clearingFocus($initMode))
-                    }
-                }
-            }
-
-            Section {
-                Toggle("Don’t Use Separate User", isOn: clearingFocus($usesRootUser))
-                if !usesRootUser {
+            Section("User") {
+                Toggle("Don’t Use Separate User", isOn: clearingFocus($draft.usesRootUser))
+                if !draft.usesRootUser {
                     LabeledContent("Username") {
-                        TextField("Username", text: $username, prompt: Text(verbatim: Self.fallbackUsername))
+                        TextField("Username", text: $draft.username, prompt: Text(verbatim: Self.fallbackUsername))
                             .focused($focusedField, equals: .username)
                             .labelsHidden()
                             .multilineTextAlignment(.trailing)
                             .autocorrectionDisabled()
                             .textInputAutocapitalization(.never)
-                            .textContentType(.username)
                     }
                 }
                 LabeledContent("Password") {
-                    SecureField("Password", text: $password, prompt: Text("Optional"))
+                    TextField("Password", text: $draft.password.masked { focusedField == .password }, prompt: Text("Optional"))
                         .focused($focusedField, equals: .password)
                         .labelsHidden()
                         .multilineTextAlignment(.trailing)
-                        .textContentType(.newPassword)
-                }
-            } header: {
-                Text("User")
-            } footer: {
-                if !usesRootUser, let problem = usernameProblem {
-                    Text(problem)
-                        .foregroundStyle(.red)
-                }
-            }
-
-            Section("Software") {
-                if let distribution = selectedDistribution {
-                    Picker("Shell", selection: clearingFocus(Binding {
-                        software.shell ?? distribution.defaultShell
-                    } set: { shell in
-                        software.shell = shell
-                    })) {
-                        ForEach(distribution.shells(for: selectedRelease)) { shell in
-                            Text(verbatim: shell.displayName)
-                                .tag(shell)
-                        }
-                    }
-                }
-                NavigationLink {
-                    SetupSSHView(ssh: $ssh)
-                } label: {
-                    LabeledContent {
-                        Text(verbatim: ssh.isEnabled ? ssh.port : String(localized: "Off"))
-                    } label: {
-                        Text(verbatim: "SSH")
-                    }
-                }
-                NavigationLink {
-                    SetupDeveloperToolsView(software: $software)
-                } label: {
-                    LabeledContent(
-                        "Developer Tools",
-                        value: Self.summary(DeveloperTool.allCases.filter(software.developerTools.contains).map(\.shortName))
-                    )
-                }
-                NavigationLink {
-                    SetupAgentsView(software: $software)
-                } label: {
-                    LabeledContent(
-                        "Agents",
-                        value: Self.summary(CodingAgent.allCases.filter(software.agents.contains).map(\.shortName))
-                    )
+                        .textContentType(.oneTimeCode)
+                        .keyboardType(.asciiCapable)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
                 }
             }
 
@@ -203,7 +166,7 @@ struct SetupView: View {
         ) { result in
             do {
                 guard let url = try result.get().first else { return }
-                customFileURL = url
+                draft.customFileURL = url
                 applyAutoContainerName(Self.suggestedContainerName(fromArchive: url.lastPathComponent))
             } catch {
                 errorMessage = error.localizedDescription
@@ -217,6 +180,20 @@ struct SetupView: View {
             }
         }) {} message: {
             Text(errorMessage ?? "")
+        }
+        .alert("Failed to Load Versions", isPresented: Binding {
+            catalogFailure != nil
+        } set: { presented in
+            if !presented {
+                catalogFailure = nil
+            }
+        }, presenting: catalogFailure) { _ in
+            Button("Retry") {
+                Task { await catalog.refresh(mirror: selectedMirror) }
+            }
+            Button("OK", role: .cancel) {}
+        } message: { failure in
+            Text(failure)
         }
         .task {
             await catalog.loadIfNeeded(mirror: selectedMirror)
@@ -232,13 +209,13 @@ struct SetupView: View {
         .onChange(of: localHostName.name) { _, name in
             applyAutoUsername(Self.suggestedUsername(fromHostName: name))
         }
-        .onChange(of: source) { _, newSource in
+        .onChange(of: draft.source) { _, newSource in
             switch newSource {
             case let .distribution(distribution):
                 applyAutoContainerName(distribution.defaultContainerName)
                 syncSelectedRelease()
             case .localArchive:
-                if let customFileURL {
+                if let customFileURL = draft.customFileURL {
                     applyAutoContainerName(Self.suggestedContainerName(fromArchive: customFileURL.lastPathComponent))
                 }
             case .archiveURL:
@@ -247,28 +224,31 @@ struct SetupView: View {
                 }
             }
         }
-        .onChange(of: customRemoteURLText) {
+        .onChange(of: draft.customRemoteURLText) {
             if let url = remoteArchiveURL {
                 applyAutoContainerName(Self.suggestedContainerName(fromArchive: url.lastPathComponent))
             }
         }
-        .onChange(of: catalog.loadState) {
+        .onChange(of: catalog.loadState) { _, loadState in
             syncSelectedRelease()
-        }
-        .onChange(of: selectedRelease) {
-            if let shell = software.shell, let distribution = selectedDistribution,
-               !distribution.shells(for: selectedRelease).contains(shell)
-            {
-                software.shell = nil
+            if selectedDistribution != nil, case let .failed(message) = loadState {
+                catalogFailure = message
             }
         }
-        .onChange(of: mirrorID) {
+        .onChange(of: selectedRelease) {
+            if let shell = draft.software.shell, let distribution = selectedDistribution,
+               !distribution.shells(for: selectedRelease).contains(shell)
+            {
+                draft.software.shell = .bash
+            }
+        }
+        .onChange(of: draft.mirrorID) {
             Task { await catalog.refresh(mirror: selectedMirror) }
         }
     }
 
     private var selectedDistribution: LinuxDistribution? {
-        if case let .distribution(distribution) = source {
+        if case let .distribution(distribution) = draft.source {
             return distribution
         }
         return nil
@@ -276,7 +256,7 @@ struct SetupView: View {
 
     private var selectedRelease: LinuxReleaseImage? {
         guard let distribution = selectedDistribution else { return nil }
-        if let selectedReleaseID,
+        if let selectedReleaseID = draft.selectedReleaseID,
            let matched = catalog.releases(for: distribution).first(where: { $0.id == selectedReleaseID })
         {
             return matched
@@ -285,7 +265,7 @@ struct SetupView: View {
     }
 
     private var selectedMirror: DistributionMirror? {
-        DistributionMirror.all.first { $0.id == mirrorID }
+        availableMirrors.first { $0.id == draft.mirrorID }
     }
 
     private var availableMirrors: [DistributionMirror] {
@@ -303,32 +283,38 @@ struct SetupView: View {
 
     private var effectiveInitMode: ContainerInitMode {
         guard let selectedSystemInit else { return .managed }
-        return selectedSystemInit.requiredInitMode ?? initMode
+        return selectedSystemInit.requiredInitMode ?? draft.initMode
     }
 
     private var remoteArchiveURL: URL? {
-        let trimmed = customRemoteURLText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = draft.customRemoteURLText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let url = URL(string: trimmed), url.scheme?.lowercased() == "https", url.host != nil else {
             return nil
         }
         return url
     }
 
+    private var softwareSummary: String {
+        let shell = (draft.software.shell ?? .bash).displayName
+        let count = draft.software.developerTools.count + draft.software.agents.count + (draft.ssh.isEnabled ? 1 : 0)
+        return count == 0 ? shell : "\(shell) + \(count)"
+    }
+
     private var usernameProblem: LocalizedStringResource? {
-        if username == "root" {
+        if draft.username == "root" {
             return "To use root, turn on Don’t Use Separate User."
         }
-        guard !username.isEmpty, !Self.isValidUsername(username) else { return nil }
+        guard !draft.username.isEmpty, !Self.isValidUsername(draft.username) else { return nil }
         return "Use up to 32 lowercase letters, digits, “_” and “-”, starting with a letter or “_”."
     }
 
     private var canInstall: Bool {
-        guard usesRootUser || Self.isValidUsername(username) else { return false }
-        switch source {
+        guard draft.usesRootUser || !draft.username.isEmpty else { return false }
+        switch draft.source {
         case .distribution:
             return selectedRelease != nil
         case .localArchive:
-            return customFileURL != nil
+            return draft.customFileURL != nil
         case .archiveURL:
             return remoteArchiveURL != nil
         }
@@ -344,37 +330,39 @@ struct SetupView: View {
     }
 
     private func applyAutoContainerName(_ suggested: String) {
-        let trimmed = containerName.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty || containerName == lastAutoContainerName {
-            containerName = suggested
-            lastAutoContainerName = suggested
+        let trimmed = draft.containerName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty || draft.containerName == draft.lastAutoContainerName {
+            draft.containerName = suggested
+            draft.lastAutoContainerName = suggested
         }
     }
 
     private func applyAutoUsername(_ suggested: String) {
-        if username.isEmpty || username == lastAutoUsername {
-            username = suggested
-            lastAutoUsername = suggested
+        if draft.username.isEmpty || draft.username == draft.lastAutoUsername {
+            draft.username = suggested
+            draft.lastAutoUsername = suggested
         }
     }
 
     private func syncSelectedRelease() {
         guard let distribution = selectedDistribution else { return }
-        if let selectedReleaseID, catalog.releases(for: distribution).contains(where: { $0.id == selectedReleaseID }) {
+        if let selectedReleaseID = draft.selectedReleaseID,
+           catalog.releases(for: distribution).contains(where: { $0.id == selectedReleaseID })
+        {
             return
         }
-        selectedReleaseID = catalog.defaultRelease(for: distribution)?.id
+        draft.selectedReleaseID = catalog.defaultRelease(for: distribution)?.id
     }
 
     private func startInstall() {
         focusedField = nil
         let installSource: LinuxSystem.InstallRequest.Source
-        switch source {
+        switch draft.source {
         case .distribution:
             guard let release = selectedRelease else { return }
             installSource = .catalog(release, mirror: selectedMirror)
         case .localArchive:
-            guard let fileURL = customFileURL else { return }
+            guard let fileURL = draft.customFileURL else { return }
             installSource = .localArchive(fileURL)
         case .archiveURL:
             guard let url = remoteArchiveURL else {
@@ -383,42 +371,41 @@ struct SetupView: View {
             }
             installSource = .remoteArchive(url)
         }
-        guard usesRootUser || Self.isValidUsername(username) else { return }
-        if password.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) {
+        if !draft.usesRootUser, let usernameProblem {
+            errorMessage = String(localized: usernameProblem)
+            return
+        }
+        if draft.password.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) {
             errorMessage = String(localized: "The password can’t contain line breaks or control characters.")
             return
         }
-        var software = software
-        if software.shell == selectedDistribution?.defaultShell || selectedDistribution == nil {
+        var software = draft.software
+        if selectedDistribution == nil {
             software.shell = nil
         }
-        if ssh.isEnabled {
-            guard let port = ssh.validPort else {
+        if draft.ssh.isEnabled {
+            guard let port = draft.ssh.validPort else {
                 errorMessage = String(localized: "Use a port from \(SSHServer.ports.lowerBound) to \(SSHServer.ports.upperBound).")
                 return
             }
-            if !ssh.authentication.allowsPublicKey, password.isEmpty {
+            if !draft.ssh.authentication.allowsPublicKey, draft.password.isEmpty {
                 errorMessage = String(localized: "Set a password or allow public key authentication to sign in over SSH.")
                 return
             }
             software.ssh = SSHServer(
                 port: port,
-                authentication: ssh.authentication,
-                authorizedKeys: ssh.authentication.allowsPublicKey ? ssh.authorizedKeys : ""
+                authentication: draft.ssh.authentication,
+                authorizedKeys: draft.ssh.authentication.allowsPublicKey ? draft.ssh.authorizedKeys : ""
             )
         }
         system.install(LinuxSystem.InstallRequest(
             source: installSource,
-            containerName: Self.sanitizedContainerName(containerName),
+            containerName: Self.sanitizedContainerName(draft.containerName),
             initMode: effectiveInitMode,
-            user: usesRootUser ? "root" : username,
-            password: password.isEmpty ? nil : password,
+            user: draft.usesRootUser ? "root" : draft.username,
+            password: draft.password.isEmpty ? nil : draft.password,
             software: software
         ))
-    }
-
-    private static func summary(_ names: [String]) -> String {
-        names.isEmpty ? String(localized: "None") : names.formatted(.list(type: .and, width: .narrow))
     }
 
     private static var supportedArchiveTypes: [UTType] {
@@ -544,6 +531,18 @@ private struct SetupMirrorPicker: View {
                         Text(region.displayName)
                     }
                 }
+            }
+        }
+    }
+}
+
+private extension Binding<String> {
+    func masked(revealed: @escaping () -> Bool) -> Binding<String> {
+        Binding {
+            revealed() ? wrappedValue : String(repeating: "•", count: wrappedValue.count)
+        } set: {
+            if revealed() {
+                wrappedValue = $0
             }
         }
     }

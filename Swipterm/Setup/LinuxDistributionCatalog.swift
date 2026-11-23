@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import SwiptermKit
 
 nonisolated enum LinuxDistribution: String, CaseIterable, Identifiable, Codable, Hashable, Sendable {
     case alma
@@ -223,11 +224,8 @@ final class LinuxDistributionCatalogStore {
                 loadState = .loaded
             } catch {
                 guard !Task.isCancelled else { return }
-                if releasesByDistribution.isEmpty {
-                    loadState = .failed(error.localizedDescription)
-                } else {
-                    loadState = .loaded
-                }
+                releasesByDistribution = [:]
+                loadState = .failed(error.localizedDescription)
             }
             activeTask = nil
         }
@@ -295,17 +293,20 @@ private nonisolated enum LinuxDistributionCatalogClient {
         async let simplestreams = Result { try await fetchSimplestreams(mirror: mirror) }
         async let gentoo = Result { try await fetchGentoo(mirror: mirror) }
         async let void = Result { try await fetchVoid(mirror: mirror) }
-        async let nixOS = Result { try await fetchNixOS() }
+        async let nixOS = Result { try await fetchNixOS(mirror: mirror) }
 
         var grouped: [LinuxDistribution: [LinuxReleaseImage]] = [:]
         var firstError: Error?
-        for result in await [simplestreams, gentoo, void, nixOS] {
+        for (repository, result) in await [(MirrorRepository.lxc, simplestreams), (.gentoo, gentoo), (.void, void), (.nixos, nixOS)] {
             switch result {
             case let .success(images):
                 for image in images {
                     grouped[image.distribution, default: []].append(image)
                 }
             case let .failure(error):
+                if let mirror, mirror.hosts(repository) {
+                    throw error
+                }
                 firstError = firstError ?? error
             }
         }
@@ -332,8 +333,11 @@ private nonisolated enum LinuxDistributionCatalogClient {
             request.setValue(accept, forHTTPHeaderField: "Accept")
         }
         let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse, (200 ..< 300).contains(http.statusCode) else {
+        guard let http = response as? HTTPURLResponse else {
             throw URLError(.badServerResponse)
+        }
+        guard (200 ..< 300).contains(http.statusCode) else {
+            throw HTTPError.unexpectedStatus(http.statusCode)
         }
         return data
     }
@@ -346,10 +350,9 @@ private nonisolated enum LinuxDistributionCatalogClient {
     }
 
     private static func fetchSimplestreams(mirror: DistributionMirror?) async throws -> [LinuxReleaseImage] {
-        let candidates = DistributionMirrorRouter.candidates(for: .lxc, preferring: mirror) { endpoint in
+        let document = try await DistributionMirrorRouter.firstSuccess(for: .lxc, preferring: mirror) { endpoint in
             endpoint.lxcIndexPath.map(endpoint.url(for:))
-        }
-        let document = try await DistributionMirrorRouter.firstSuccess(of: candidates) { candidate in
+        } _: { candidate in
             try JSONDecoder().decode(SimplestreamsDocument.self, from: await fetch(candidate.url))
         }
         var images: [LinuxReleaseImage] = []
@@ -387,10 +390,9 @@ private nonisolated enum LinuxDistributionCatalogClient {
     }
 
     private static func fetchGentoo(mirror: DistributionMirror?) async throws -> [LinuxReleaseImage] {
-        let candidates = DistributionMirrorRouter.candidates(for: .gentoo, preferring: mirror) { endpoint in
+        try await DistributionMirrorRouter.firstSuccess(for: .gentoo, preferring: mirror) { endpoint in
             endpoint.url(for: "\(gentooAutobuildsPath)/latest-stage3-arm64-systemd.txt")
-        }
-        return try await DistributionMirrorRouter.firstSuccess(of: candidates) { candidate in
+        } _: { candidate in
             try await fetchGentoo(from: candidate.endpoint)
         }
     }
@@ -439,10 +441,9 @@ private nonisolated enum LinuxDistributionCatalogClient {
     }
 
     private static func fetchVoid(mirror: DistributionMirror?) async throws -> [LinuxReleaseImage] {
-        let candidates = DistributionMirrorRouter.candidates(for: .void, preferring: mirror) { endpoint in
+        let checksums = try await DistributionMirrorRouter.firstSuccess(for: .void, preferring: mirror) { endpoint in
             endpoint.url(for: voidChecksumsPath)
-        }
-        let checksums = try await DistributionMirrorRouter.firstSuccess(of: candidates) { candidate in
+        } _: { candidate in
             try await fetchText(candidate.url)
         }
         let prefix = "void-aarch64-ROOTFS-"
@@ -473,11 +474,12 @@ private nonisolated enum LinuxDistributionCatalogClient {
         throw URLError(.cannotParseResponse)
     }
 
-    private static func fetchNixOS() async throws -> [LinuxReleaseImage] {
+    private static func fetchNixOS(mirror: DistributionMirror?) async throws -> [LinuxReleaseImage] {
         try await withThrowingTaskGroup(of: LinuxReleaseImage?.self) { group in
             for channel in nixOSChannels {
                 group.addTask {
                     try? await fetchNixOS(
+                        mirror: mirror,
                         release: channel.release,
                         jobset: channel.jobset,
                         title: channel.title,
@@ -500,16 +502,16 @@ private nonisolated enum LinuxDistributionCatalogClient {
     }
 
     private static func fetchNixOS(
+        mirror: DistributionMirror?,
         release: String,
         jobset: String,
         title: String,
         rank: Int,
         isRecommended: Bool
     ) async throws -> LinuxReleaseImage {
-        let candidates = DistributionMirrorRouter.candidates(for: .nixos, preferring: nil) { endpoint in
+        let build = try await DistributionMirrorRouter.firstSuccess(for: .nixos, preferring: mirror) { endpoint in
             endpoint.url(for: "job/nixos/\(jobset)/nixos.containerTarball.aarch64-linux/latest")
-        }
-        let build = try await DistributionMirrorRouter.firstSuccess(of: candidates) { candidate in
+        } _: { candidate in
             try JSONDecoder().decode(HydraBuild.self, from: await fetch(candidate.url, accept: "application/json"))
         }
         guard build.finished == 1, build.buildstatus == 0,

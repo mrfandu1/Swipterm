@@ -6,14 +6,10 @@ nonisolated struct PackageRepositoryConfigurator {
     let distribution: LinuxDistribution
     let release: OSRelease
 
-    private static let archBrokenServer = "http://mirror.archlinuxarm.org/$arch/$repo"
     private static let oracleKeyPath = "/etc/pki/rpm-gpg/RPM-GPG-KEY-oracle"
 
-    func apply(_ source: PackageSource) async throws -> [String] {
-        let root: PackageRepositoryRoot? = switch source {
-        case .upstream: nil
-        case let .mirror(_, root): root
-        }
+    func apply(_ mirror: PackageMirror?) async throws -> [String] {
+        let root = mirror?.root
         switch distribution {
         case .debian, .devuan, .kali, .ubuntu:
             guard let root else { return [] }
@@ -22,15 +18,10 @@ nonisolated struct PackageRepositoryConfigurator {
             guard let root else { return [] }
             return try await rewrite(["/etc/apk/repositories"]) { RepositoryText.alpine($0, root: root.url) }
         case .arch:
+            guard let root else { return [] }
+            let generated = Set(DistributionMirror.all.compactMap { $0.packages[.arch].map { "\($0.url)/$arch/$repo" } })
             return try await rewrite(["/etc/pacman.d/mirrorlist"]) { text in
-                if let root {
-                    return RepositoryText.pacmanMirrorlist(text, server: "\(root.url)/$arch/$repo")
-                }
-                return RepositoryText.pacmanReplacing(
-                    text,
-                    server: Self.archBrokenServer,
-                    with: "\(DistributionMirror.official.packages[.arch]!.url)/$arch/$repo"
-                )
+                RepositoryText.pacmanMirrorlist(text, server: "\(root.url)/$arch/$repo", replacing: generated)
             }
         case .fedora:
             guard let root else { return [] }
@@ -288,28 +279,26 @@ private nonisolated enum RepositoryText {
         }.joined(separator: "\n")
     }
 
-    static func pacmanMirrorlist(_ text: String, server: String) -> String {
-        let commented = lines(text).map { line in
-            isPacmanServer(line) ? "#\(line)" : line
-        }
-        return (["Server = \(server)"] + commented).joined(separator: "\n")
-    }
-
-    static func pacmanReplacing(_ text: String, server: String, with replacement: String) -> String {
-        lines(text).map { line in
-            guard isPacmanServer(line),
-                  let separator = line.firstIndex(of: "="),
-                  line[line.index(after: separator)...].trimmingCharacters(in: .whitespaces) == server
-            else {
-                return line
+    static func pacmanMirrorlist(_ text: String, server: String, replacing generated: Set<String>) -> String {
+        let retained = lines(text).compactMap { line -> String? in
+            if let server = pacmanServer(line) {
+                return generated.contains(server) ? nil : "#\(line)"
             }
-            return "Server = \(replacement)"
-        }.joined(separator: "\n")
+            if line.hasPrefix("#"), let server = pacmanServer(String(line.dropFirst())), generated.contains(server) {
+                return nil
+            }
+            return line
+        }
+        return (["Server = \(server)"] + retained).joined(separator: "\n")
     }
 
-    private static func isPacmanServer(_ line: String) -> Bool {
-        guard let separator = line.firstIndex(of: "=") else { return false }
-        return line[..<separator].trimmingCharacters(in: .whitespaces) == "Server"
+    private static func pacmanServer(_ line: String) -> String? {
+        guard let separator = line.firstIndex(of: "="),
+              line[..<separator].trimmingCharacters(in: .whitespaces) == "Server"
+        else {
+            return nil
+        }
+        return line[line.index(after: separator)...].trimmingCharacters(in: .whitespaces)
     }
 
     static func repoStanzas(_ text: String, baseURL: (String) -> String?) -> String {

@@ -1,46 +1,70 @@
 import Foundation
 
-nonisolated enum PackageSource: Sendable {
-    case upstream
-    case mirror(name: String, root: PackageRepositoryRoot)
+nonisolated struct PackageMirror: Sendable {
+    let name: String
+    let root: PackageRepositoryRoot
+}
+
+nonisolated enum PackageMirrorError: LocalizedError {
+    case unreachable(MirrorRegion)
+
+    var errorDescription: String? {
+        switch self {
+        case let .unreachable(region):
+            let region = String(localized: region.displayName)
+            return String(localized: "No package mirror in \(region) responded.")
+        }
+    }
 }
 
 nonisolated enum PackageMirrorResolver {
+    private struct Responder: Sendable {
+        let mirror: PackageMirror
+        let probe: MirrorProbe.Response
+    }
+
+    private static let settlingWindow = Duration.milliseconds(400)
+    private static let freshnessTolerance: TimeInterval = 6 * 60 * 60
+
     static func resolve(
         for distribution: LinuxDistribution,
         release: OSRelease,
         mirrorID: String?
-    ) async -> PackageSource {
+    ) async throws -> PackageMirror? {
         if let selected = DistributionMirror.all.first(where: { $0.id == mirrorID }) {
             if selected.id == DistributionMirror.official.id {
                 return official(for: distribution, release: release)
             }
             if let root = selected.packageRoot(for: distribution, release: release) {
-                return .mirror(name: selected.name, root: completed(root, for: distribution))
+                return PackageMirror(name: selected.name, root: completed(root, for: distribution))
             }
-            if selected.region == .cn,
-               let source = await fastestMirror(in: .cn, for: distribution, release: release)
-            {
-                return source
+        }
+        let region = await DistributionMirrorRouter.regionDetector.region()
+        let candidates = DistributionMirror.all.compactMap { mirror -> PackageMirror? in
+            guard region != .global, mirror.region == region, let root = mirror.packageRoot(for: distribution, release: release) else {
+                return nil
             }
+            return PackageMirror(name: mirror.name, root: completed(root, for: distribution))
+        }
+        guard !candidates.isEmpty else {
             return official(for: distribution, release: release)
         }
-        guard await DistributionMirrorRouter.regionDetector.region() == .cn else {
-            return .upstream
+        guard let path = probePath(for: distribution, release: release) else {
+            return candidates[0]
         }
-        return await fastestMirror(in: .cn, for: distribution, release: release) ?? .upstream
+        guard let mirror = await fastest(of: candidates, probing: path, freshness: distribution != .nixos) else {
+            throw PackageMirrorError.unreachable(region)
+        }
+        return mirror
     }
 
-    private static func official(for distribution: LinuxDistribution, release: OSRelease) -> PackageSource {
+    private static func official(for distribution: LinuxDistribution, release: OSRelease) -> PackageMirror? {
         switch distribution {
         case .alma, .centos, .fedora, .rocky:
-            return .upstream
+            return nil
         default:
             let mirror = DistributionMirror.official
-            guard let root = mirror.packageRoot(for: distribution, release: release) else {
-                return .upstream
-            }
-            return .mirror(name: mirror.name, root: root)
+            return mirror.packageRoot(for: distribution, release: release).map { PackageMirror(name: mirror.name, root: $0) }
         }
     }
 
@@ -53,35 +77,42 @@ nonisolated enum PackageMirrorResolver {
         return root
     }
 
-    private static func fastestMirror(
-        in region: MirrorRegion,
-        for distribution: LinuxDistribution,
-        release: OSRelease
-    ) async -> PackageSource? {
-        let candidates = DistributionMirror.all.compactMap { mirror -> (name: String, root: PackageRepositoryRoot)? in
-            guard mirror.region == region, let root = mirror.packageRoot(for: distribution, release: release) else {
-                return nil
-            }
-            return (mirror.name, completed(root, for: distribution))
-        }
-        guard let path = probePath(for: distribution, release: release) else {
-            return candidates.first.map { .mirror(name: $0.name, root: $0.root) }
-        }
-        return await withTaskGroup(of: PackageSource?.self) { group in
+    private static func fastest(of candidates: [PackageMirror], probing path: String, freshness: Bool) async -> PackageMirror? {
+        var responders = await withTaskGroup(of: Responder?.self) { group in
             for candidate in candidates {
                 guard let url = URL(string: "\(candidate.root.url)/\(path)") else { continue }
                 group.addTask {
-                    await MirrorProbe.responds(url) ? .mirror(name: candidate.name, root: candidate.root) : nil
+                    await MirrorProbe.probe(url).map { Responder(mirror: candidate, probe: $0) }
                 }
             }
-            for await source in group {
-                if let source {
-                    group.cancelAll()
-                    return source
+            var responded: [Responder] = []
+            var deadline: ContinuousClock.Instant?
+            for await responder in group {
+                if let responder {
+                    responded.append(responder)
+                    if deadline == nil {
+                        let settled = ContinuousClock.now + settlingWindow
+                        deadline = settled
+                        group.addTask {
+                            try? await Task.sleep(until: settled, clock: .continuous)
+                            return nil
+                        }
+                    }
+                }
+                if let deadline, deadline <= .now {
+                    break
                 }
             }
-            return nil
+            group.cancelAll()
+            return responded
         }
+        if freshness, let newest = responders.compactMap(\.probe.lastModified).max() {
+            responders.removeAll { responder in
+                guard let lastModified = responder.probe.lastModified else { return true }
+                return newest.timeIntervalSince(lastModified) > freshnessTolerance
+            }
+        }
+        return responders.min { $0.probe.latency < $1.probe.latency }?.mirror
     }
 
     private static func probePath(for distribution: LinuxDistribution, release: OSRelease) -> String? {

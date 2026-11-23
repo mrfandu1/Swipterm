@@ -30,11 +30,6 @@ struct SetupSSHView: View {
                             .keyboardType(.numberPad)
                     }
                 }
-            } footer: {
-                if ssh.isEnabled, ssh.validPort == nil {
-                    Text("Use a port from \(SSHServer.ports.lowerBound) to \(SSHServer.ports.upperBound).")
-                        .foregroundStyle(.red)
-                }
             }
 
             if ssh.isEnabled {
@@ -133,55 +128,116 @@ private struct PublicKeySheet: View {
     }
 }
 
-struct SetupDeveloperToolsView: View {
+struct SetupSoftwareView: View {
     @Binding var software: ContainerSoftware
+    @Binding var ssh: SetupSSH
+    let shells: [LoginShell]
 
     var body: some View {
         Form {
             Section {
-                toggle(.node)
-                toggle(.pnpm)
-                toggle(.bun)
-            } header: {
-                Text(verbatim: "Node")
+                if !shells.isEmpty {
+                    Picker("Shell", selection: $software.shell) {
+                        ForEach(shells) { shell in
+                            Text(verbatim: shell.displayName)
+                                .tag(Optional(shell))
+                        }
+                    }
+                }
+                NavigationLink {
+                    SetupSSHView(ssh: $ssh)
+                } label: {
+                    LabeledContent {
+                        Text(verbatim: ssh.isEnabled ? ssh.port : String(localized: "Off"))
+                    } label: {
+                        Text(verbatim: "SSH")
+                    }
+                }
             }
-            Section {
-                toggle(.go)
-            } header: {
-                Text(verbatim: "Go")
+
+            Section("Developer Tools") {
+                ForEach(DeveloperTool.allCases, id: \.self) { tool in
+                    let isSelected = software.developerTools.contains(tool)
+                    SetupSelectionRow(title: tool.displayName, isSelected: isSelected) {
+                        software.setDeveloperTool(tool, isEnabled: !isSelected)
+                    }
+                }
             }
-        }
-        .navigationTitle("Developer Tools")
-        .navigationBarTitleDisplayMode(.inline)
-    }
 
-    private func toggle(_ tool: DeveloperTool) -> some View {
-        Toggle(isOn: Binding {
-            software.developerTools.contains(tool)
-        } set: { isEnabled in
-            software.setDeveloperTool(tool, isEnabled: isEnabled)
-        }) {
-            Text(verbatim: tool.displayName)
-        }
-    }
-}
+            Section("Agents") {
+                ForEach(CodingAgent.allCases, id: \.self) { agent in
+                    let isSelected = software.agents.contains(agent)
+                    SetupSelectionRow(title: agent.displayName, isSelected: isSelected) {
+                        software.setAgent(agent, isEnabled: !isSelected)
+                    }
+                }
+            }
 
-struct SetupAgentsView: View {
-    @Binding var software: ContainerSoftware
-
-    var body: some View {
-        Form {
-            ForEach(CodingAgent.allCases, id: \.self) { agent in
-                Toggle(isOn: Binding {
-                    software.agents.contains(agent)
-                } set: { isEnabled in
-                    software.setAgent(agent, isEnabled: isEnabled)
-                }) {
-                    Text(verbatim: agent.displayName)
+            let registries = software.registries
+            if !registries.isEmpty {
+                Section("Mirrors") {
+                    ForEach(registries, id: \.self) { registry in
+                        RegistryMirrorPicker(registry: registry, mirrorID: Binding {
+                            software.registryMirrors[registry] ?? ""
+                        } set: { mirrorID in
+                            software.registryMirrors[registry] = mirrorID.isEmpty ? nil : mirrorID
+                        })
+                    }
                 }
             }
         }
-        .navigationTitle("Agents")
+        .navigationTitle("Software")
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct SetupSelectionRow: View {
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack {
+                Text(verbatim: title)
+                    .foregroundStyle(.primary)
+                Spacer()
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .foregroundStyle(.tint)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
+private struct RegistryMirrorPicker: View {
+    let registry: PackageRegistry
+    @Binding var mirrorID: String
+
+    var body: some View {
+        let mirrors = RegistryMirror.mirrors(for: registry)
+        Picker(selection: $mirrorID) {
+            Text("Automatic")
+                .tag("")
+            ForEach(MirrorRegion.allCases, id: \.self) { region in
+                let regionMirrors = mirrors.filter { $0.region == region }
+                if !regionMirrors.isEmpty {
+                    Section {
+                        ForEach(regionMirrors) { mirror in
+                            Text(verbatim: mirror.name)
+                                .tag(mirror.id)
+                        }
+                    } header: {
+                        Text(region.displayName)
+                    }
+                }
+            }
+        } label: {
+            Text(verbatim: registry.displayName)
+        }
     }
 }

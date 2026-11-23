@@ -24,15 +24,24 @@ nonisolated enum MirrorRegion: CaseIterable, Hashable, Sendable {
         }
     }
 
-    fileprivate var probeURL: URL {
-        let url = switch self {
-        case .global: "https://images.linuxcontainers.org/streams/v1/images.json"
-        case .cn: "https://mirrors.tuna.tsinghua.edu.cn/lxc-images/meta/simplestreams/v1/images.json"
-        case .apac: "https://mirror.freedif.org/gentoo/releases/arm64/autobuilds/latest-stage3-arm64-systemd.txt"
-        case .na: "https://gentoo.osuosl.org/releases/arm64/autobuilds/latest-stage3-arm64-systemd.txt"
-        case .eu: "https://ftp.fau.de/gentoo/releases/arm64/autobuilds/latest-stage3-arm64-systemd.txt"
+    fileprivate var probeURLs: [URL] {
+        let urls: [String] = switch self {
+        case .global:
+            []
+        case .cn:
+            [
+                "https://mirrors.aliyun.com/alpine/MIRRORS.txt",
+                "https://mirrors.cloud.tencent.com/alpine/MIRRORS.txt",
+                "https://mirrors.sjtug.sjtu.edu.cn/alpine/MIRRORS.txt",
+            ]
+        case .apac:
+            ["https://mirror.freedif.org/gentoo/releases/arm64/autobuilds/latest-stage3-arm64-systemd.txt"]
+        case .na:
+            ["https://gentoo.osuosl.org/releases/arm64/autobuilds/latest-stage3-arm64-systemd.txt"]
+        case .eu:
+            ["https://ftp.fau.de/gentoo/releases/arm64/autobuilds/latest-stage3-arm64-systemd.txt"]
         }
-        return URL(string: url)!
+        return urls.map { URL(string: $0)! }
     }
 }
 
@@ -611,46 +620,25 @@ nonisolated enum DistributionMirrorRouter {
         let url: URL
     }
 
-    static func candidates(
-        for repository: MirrorRepository,
-        preferring mirror: DistributionMirror?,
-        url: @escaping @Sendable (MirrorEndpoint) -> URL?
-    ) -> AsyncStream<Candidate> {
-        AsyncStream { continuation in
-            let task = Task {
-                let pool = await regionalEndpoints(for: repository, preferring: mirror)
-                await withTaskGroup(of: Candidate?.self) { group in
-                    for endpoint in pool {
-                        guard let target = url(endpoint) else { continue }
-                        group.addTask {
-                            await MirrorProbe.responds(target) ? Candidate(endpoint: endpoint, url: target) : nil
-                        }
-                    }
-                    for await candidate in group {
-                        if let candidate {
-                            continuation.yield(candidate)
-                        }
-                    }
-                }
-                for endpoint in DistributionMirror.official.endpoints(for: repository) {
-                    if let target = url(endpoint) {
-                        continuation.yield(Candidate(endpoint: endpoint, url: target))
-                    }
-                }
-                continuation.finish()
-            }
-            continuation.onTermination = { _ in
-                task.cancel()
-            }
+    static let regionDetector = MirrorRegionDetector()
+
+    static func endpoints(for repository: MirrorRepository, preferring mirror: DistributionMirror?) async -> [MirrorEndpoint] {
+        if let mirror, mirror.hosts(repository) {
+            return mirror.endpoints(for: repository)
         }
+        let region = await regionDetector.region()
+        let regional = DistributionMirror.all.filter { $0.region == region }.flatMap { $0.endpoints(for: repository) }
+        return regional.isEmpty ? DistributionMirror.official.endpoints(for: repository) : regional
     }
 
     static func firstSuccess<Result>(
-        of candidates: AsyncStream<Candidate>,
+        for repository: MirrorRepository,
+        preferring mirror: DistributionMirror?,
+        url: @escaping @Sendable (MirrorEndpoint) -> URL?,
         _ body: (Candidate) async throws -> Result
     ) async throws -> Result {
         var lastError: (any Error)?
-        for await candidate in candidates {
+        for await candidate in candidates(for: repository, preferring: mirror, url: url) {
             do {
                 return try await body(candidate)
             } catch {
@@ -659,22 +647,44 @@ nonisolated enum DistributionMirrorRouter {
             }
         }
         try Task.checkCancellation()
-        throw lastError ?? URLError(.resourceUnavailable)
+        throw lastError ?? URLError(.cannotConnectToHost)
     }
 
-    static let regionDetector = MirrorRegionDetector()
-
-    private static func regionalEndpoints(
+    private static func candidates(
         for repository: MirrorRepository,
-        preferring mirror: DistributionMirror?
-    ) async -> [MirrorEndpoint] {
-        if let mirror, mirror.hosts(repository) {
-            return mirror.region == .global ? [] : mirror.endpoints(for: repository)
+        preferring mirror: DistributionMirror?,
+        url: @escaping @Sendable (MirrorEndpoint) -> URL?
+    ) -> AsyncStream<Candidate> {
+        AsyncStream { continuation in
+            let task = Task {
+                let pool = await endpoints(for: repository, preferring: mirror)
+                if mirror?.hosts(repository) == true || pool == DistributionMirror.official.endpoints(for: repository) {
+                    for endpoint in pool {
+                        if let target = url(endpoint) {
+                            continuation.yield(Candidate(endpoint: endpoint, url: target))
+                        }
+                    }
+                } else {
+                    await withTaskGroup(of: Candidate?.self) { group in
+                        for endpoint in pool {
+                            guard let target = url(endpoint) else { continue }
+                            group.addTask {
+                                await MirrorProbe.probe(target) != nil ? Candidate(endpoint: endpoint, url: target) : nil
+                            }
+                        }
+                        for await candidate in group {
+                            if let candidate {
+                                continuation.yield(candidate)
+                            }
+                        }
+                    }
+                }
+                continuation.finish()
+            }
+            continuation.onTermination = { _ in
+                task.cancel()
+            }
         }
-        let regional = DistributionMirror.all.filter { $0.region != .global && $0.hosts(repository) }
-        guard !regional.isEmpty else { return [] }
-        let region = await regionDetector.region()
-        return regional.filter { $0.region == region }.flatMap { $0.endpoints(for: repository) }
     }
 }
 
@@ -694,8 +704,10 @@ actor MirrorRegionDetector {
         let task = Task {
             await withTaskGroup(of: MirrorRegion?.self) { group in
                 for region in MirrorRegion.allCases {
-                    group.addTask {
-                        await MirrorProbe.responds(region.probeURL) ? region : nil
+                    for url in region.probeURLs {
+                        group.addTask {
+                            await MirrorProbe.probe(url) != nil ? region : nil
+                        }
                     }
                 }
                 for await region in group {
@@ -716,6 +728,20 @@ actor MirrorRegionDetector {
 }
 
 nonisolated enum MirrorProbe {
+    struct Response: Sendable {
+        let lastModified: Date?
+        let latency: Duration
+    }
+
+    private static let httpDate = Date.ParseStrategy(
+        format: """
+        \(weekday: .abbreviated), \(day: .twoDigits) \(month: .abbreviated) \(year: .defaultDigits) \
+        \(hour: .twoDigits(clock: .twentyFourHour, hourCycle: .zeroBased)):\(minute: .twoDigits):\(second: .twoDigits) GMT
+        """,
+        locale: Locale(identifier: "en_US_POSIX"),
+        timeZone: .gmt
+    )
+
     private static let session: URLSession = {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.urlCache = nil
@@ -725,16 +751,25 @@ nonisolated enum MirrorProbe {
         return URLSession(configuration: configuration)
     }()
 
-    static func responds(_ url: URL) async -> Bool {
+    static func probe(_ url: URL) async -> Response? {
         var request = URLRequest(url: url)
         request.setValue("bytes=0-0", forHTTPHeaderField: "Range")
+        request.setValue("Swipterm/1.0", forHTTPHeaderField: "User-Agent")
+        let start = ContinuousClock.now
         guard let (bytes, response) = try? await session.bytes(for: request) else {
-            return false
+            return nil
         }
+        let latency = start.duration(to: .now)
         bytes.task.cancel()
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200 || http.statusCode == 206 else {
-            return false
+        guard let http = response as? HTTPURLResponse,
+              http.statusCode == 200 || http.statusCode == 206,
+              http.mimeType?.lowercased() != "text/html"
+        else {
+            return nil
         }
-        return http.mimeType?.lowercased() != "text/html"
+        return Response(
+            lastModified: http.value(forHTTPHeaderField: "Last-Modified").flatMap { try? Date($0, strategy: httpDate) },
+            latency: latency
+        )
     }
 }

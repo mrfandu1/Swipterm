@@ -281,6 +281,34 @@
         }
       }
     },
+    "Build Essentials": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ابزارهای پایه ساخت"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Базовые средства сборки"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "基础构建工具"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "基礎建置工具"
+          }
+        }
+      }
+    },
     "Cancel": {
       "localizations": {
         "fa": {
@@ -389,34 +417,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "選擇檔案…"
-          }
-        }
-      }
-    },
-    "Close": {
-      "localizations": {
-        "fa": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "بستن"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Закрыть"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "关闭"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "關閉"
           }
         }
       }
@@ -533,6 +533,34 @@
         }
       }
     },
+    "Copy": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "کپی"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Скопировать"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拷貝"
+          }
+        }
+      }
+    },
     "Copy Error": {
       "localizations": {
         "fa": {
@@ -613,6 +641,34 @@
           "stringUnit": {
             "state": "translated",
             "value": "建立"
+          }
+        }
+      }
+    },
+    "Custom": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "سفارشی"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Свой образ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自定义"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自訂"
           }
         }
       }
@@ -781,6 +837,34 @@
           "stringUnit": {
             "state": "translated",
             "value": "開發者工具"
+          }
+        }
+      }
+    },
+    "Distribution": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "توزیع"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Дистрибутив"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发行版"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "發行版"
           }
         }
       }
@@ -981,6 +1065,34 @@
         }
       }
     },
+    "Failed to Load Versions": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "بارگیری نسخه‌ها ناموفق بود"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось загрузить версии"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "载入版本失败"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "載入版本失敗"
+          }
+        }
+      }
+    },
     "Failed to Start Linux": {
       "localizations": {
         "fa": {
@@ -1009,6 +1121,34 @@
         }
       }
     },
+    "Failed to Start Session": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "شروع جلسه ناموفق بود"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось запустить сессию"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法启动会话"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法啟動工作階段"
+          }
+        }
+      }
+    },
     "Failed to Update Fonts": {
       "localizations": {
         "fa": {
@@ -1033,34 +1173,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "更新字體失敗"
-          }
-        }
-      }
-    },
-    "Failed to start session: %@": {
-      "localizations": {
-        "fa": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "شروع جلسه ناموفق بود: %@"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Не удалось запустить сессию: %@"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "无法启动会话：%@"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "無法啟動工作階段：%@"
           }
         }
       }
@@ -1625,6 +1737,34 @@
         }
       }
     },
+    "Mirrors": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "سرورهای آینه"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Зеркала"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "镜像源"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鏡像站"
+          }
+        }
+      }
+    },
     "Name": {
       "localizations": {
         "fa": {
@@ -1737,30 +1877,30 @@
         }
       }
     },
-    "None": {
+    "No package mirror in %@ responded.": {
       "localizations": {
         "fa": {
           "stringUnit": {
             "state": "translated",
-            "value": "هیچ‌کدام"
+            "value": "هیچ آینهٔ بسته‌ای در %@ پاسخ نداد."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Нет"
+            "value": "Ни одно зеркало пакетов в регионе «%@» не ответило."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "无"
+            "value": "%@ 的软件包镜像均无响应。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "無"
+            "value": "%@ 的套件鏡像均無回應。"
           }
         }
       }
@@ -1821,6 +1961,34 @@
         }
       }
     },
+    "OK": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تأیید"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ОК"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "好"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "好"
+          }
+        }
+      }
+    },
     "Off": {
       "localizations": {
         "fa": {
@@ -1873,6 +2041,62 @@
           "stringUnit": {
             "state": "translated",
             "value": "僅支援 HTTPS 映像檔 URL。"
+          }
+        }
+      }
+    },
+    "Open URL": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "باز کردن URL"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть URL"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开 URL"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打開 URL"
+          }
+        }
+      }
+    },
+    "Open in Safari": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "باز کردن در Safari"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть в Safari"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 Safari 打开"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 Safari 打開"
           }
         }
       }
@@ -2069,6 +2293,34 @@
           "stringUnit": {
             "state": "translated",
             "value": "公鑰"
+          }
+        }
+      }
+    },
+    "QR Code": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "کد QR"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "QR-код"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "二维码"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "QR 碼"
           }
         }
       }
@@ -2325,86 +2577,30 @@
         }
       }
     },
-    "Session ended (exit %d).": {
+    "Session Ended": {
       "localizations": {
         "fa": {
           "stringUnit": {
             "state": "translated",
-            "value": "جلسه پایان یافت (کد خروج %d)."
+            "value": "جلسه پایان یافت"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Сессия завершена (код выхода %d)."
+            "value": "Сессия завершена"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "会话已结束（退出码 %d）。"
+            "value": "会话已结束"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "工作階段已結束（結束代碼 %d）。"
-          }
-        }
-      }
-    },
-    "Session ended (signal %d).": {
-      "localizations": {
-        "fa": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "جلسه پایان یافت (سیگنال %d)."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Сессия завершена (сигнал %d)."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "会话已结束（信号 %d）。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "工作階段已結束（訊號 %d）。"
-          }
-        }
-      }
-    },
-    "Session ended.": {
-      "localizations": {
-        "fa": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "جلسه پایان یافت."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Сессия завершена."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "会话已结束。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "工作階段已結束。"
+            "value": "工作階段已結束"
           }
         }
       }
@@ -2465,6 +2661,34 @@
         }
       }
     },
+    "Setup Failed": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "راه‌اندازی ناموفق بود"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ошибка настройки"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "初始化失败"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "初始化失敗"
+          }
+        }
+      }
+    },
     "Shell": {
       "localizations": {
         "fa": {
@@ -2489,6 +2713,34 @@
           "stringUnit": {
             "state": "translated",
             "value": "Shell"
+          }
+        }
+      }
+    },
+    "Show QR Code": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "نمایش کد QR"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показать QR-код"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示二维码"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "顯示 QR 碼"
           }
         }
       }
@@ -2545,34 +2797,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "軟體"
-          }
-        }
-      }
-    },
-    "Source": {
-      "localizations": {
-        "fa": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "منبع"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Источник"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "来源"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "來源"
           }
         }
       }
@@ -2741,6 +2965,62 @@
           "stringUnit": {
             "state": "translated",
             "value": "密碼不能包含換行字元或控制字元。"
+          }
+        }
+      }
+    },
+    "The session exited with status %d.": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "جلسه با کد خروج %d پایان یافت."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сессия завершена: код выхода %d."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会话已退出，退出码 %d。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "工作階段已結束，結束代碼 %d。"
+          }
+        }
+      }
+    },
+    "The session was terminated by signal %d.": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "جلسه با سیگنال %d خاتمه یافت."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сессия прервана сигналом %d."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会话被信号 %d 终止。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "工作階段被訊號 %d 終止。"
           }
         }
       }
