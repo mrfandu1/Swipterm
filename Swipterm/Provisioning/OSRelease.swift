@@ -32,9 +32,7 @@ nonisolated struct OSRelease: Sendable {
         case "debian": .debian
         case "devuan": .devuan
         case "fedora": .fedora
-        case "gentoo": .gentoo
         case "kali": .kali
-        case "nixos": .nixos
         case "openeuler": .openEuler
         case "opensuse-leap", "opensuse-tumbleweed": .openSUSE
         case "ol": .oracle

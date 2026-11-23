@@ -73,7 +73,6 @@ final class LinuxSystem {
     static let shared = LinuxSystem()
 
     private static let loginTimeout = Duration.seconds(300)
-    private static let systemTimeout = Duration.seconds(120)
     private static let outputDrainTimeout = Duration.seconds(1)
     private static let haltReasonTimeout = Duration.seconds(5)
     private static let maxBootReboots = 2
@@ -176,7 +175,7 @@ final class LinuxSystem {
             }
             guard self.generation == generation else { return }
 
-            let metadata = Self.makeMetadata(for: request)
+            var metadata = Self.makeMetadata(for: request)
             let stagingRootURL = Self.rootDirectoryURL.deletingLastPathComponent()
                 .appending(path: Self.stagingRootPrefix + UUID().uuidString, directoryHint: .isDirectory)
             var placedRoot = false
@@ -203,7 +202,6 @@ final class LinuxSystem {
                     archiveURL = try await downloadArchive(
                         from: urls,
                         expectedBytes: release.compressedBytes,
-                        expectedSHA256: release.sha256,
                         generation: generation
                     )
                     temporaryArchiveURL = archiveURL
@@ -222,22 +220,27 @@ final class LinuxSystem {
 
                 guard self.generation == generation else { return }
                 appendConsoleStep("Extract", generation: generation)
-                let epoch = consoleProgressEpoch
-                let start = ContinuousClock.now
-                try await LinuxRootImage.archive(at: archiveURL).install(to: stagingRootURL) { fraction in
-                    DispatchQueue.main.async {
-                        MainActor.assumeIsolated {
-                            LinuxSystem.shared.appendConsoleExtractionProgress(fraction, start: start, generation: generation, epoch: epoch)
-                        }
-                    }
+                let builder = try LinuxRootImageBuilder(root: stagingRootURL)
+                try await unpack(nil, generation: generation) { progress in
+                    try await builder.add(.archive(at: archiveURL), progress: progress)
                 }
                 guard self.generation == generation else { return }
-                appendConsoleExtractionProgress(1, start: start, generation: generation, epoch: epoch)
-                endConsoleProgressLine(generation: generation)
                 try? FileManager.default.removeItem(at: archiveURL)
                 temporaryArchiveURL = nil
+                if case let .catalog(release, _) = request.source {
+                    let packageMirrorID = try await installKernel(
+                        release.distribution,
+                        mirrorID: metadata.setup?.mirrorID,
+                        into: builder,
+                        generation: generation
+                    )
+                    metadata.setup?.packageMirrorID = packageMirrorID
+                    guard self.generation == generation else { return }
+                }
+                try await builder.finish()
+                guard self.generation == generation else { return }
 
-                try await Task.detached {
+                try await Task.detached { [metadata] in
                     try Self.saveContainerMetadata(metadata, root: stagingRootURL)
                 }.value
                 guard self.generation == generation else { return }
@@ -435,7 +438,6 @@ final class LinuxSystem {
     private func downloadArchive(
         from urls: [URL],
         expectedBytes: Int64? = nil,
-        expectedSHA256: String? = nil,
         generation: UInt64
     ) async throws -> URL {
         let epoch = consoleProgressEpoch
@@ -443,31 +445,109 @@ final class LinuxSystem {
         return try await RootImageDownloader.download(
             from: urls,
             expectedBytes: expectedBytes,
-            expectedSHA256: expectedSHA256,
             onProgress: { progress in
                 DispatchQueue.main.async {
                     MainActor.assumeIsolated {
                         LinuxSystem.shared.appendConsoleDownloadProgress(progress, start: start, generation: generation, epoch: epoch)
                     }
                 }
-            },
-            onVerifying: {
-                DispatchQueue.main.async {
-                    MainActor.assumeIsolated {
-                        LinuxSystem.shared.appendConsoleStep("Verify", generation: generation)
-                    }
-                }
             }
         )
     }
 
+    private func installKernel(
+        _ distribution: LinuxDistribution,
+        mirrorID: String?,
+        into builder: LinuxRootImageBuilder,
+        generation: UInt64
+    ) async throws -> String {
+        guard let release = try Self.osRelease(in: builder) else {
+            throw KernelBootstrapError.unknownRelease
+        }
+        appendConsoleStep("Kernel", generation: generation)
+        let official = DistributionMirror.official
+        let mirror = try await PackageMirrorResolver.resolve(for: distribution, release: release, mirrorID: mirrorID)
+            ?? PackageMirror(id: official.id, name: official.name, root: official.packages[distribution]!)
+        appendConsole(Data("    \(distribution.displayName): \(mirror.name) (\(mirror.root.url))\r\n".utf8), generation: generation)
+        let directory = Self.downloadStagingDirectoryURL.appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: directory)
+        }
+        let bootstrap = KernelBootstrap(distribution: distribution, release: release, mirror: mirror)
+        let packages = try await bootstrap.packages { url, expectedBytes in
+            try await self.download(url, expectedBytes: expectedBytes, into: directory, generation: generation)
+        }
+        var files: [URL] = []
+        for package in packages {
+            try await files.append(download(package.url, expectedBytes: package.size, into: directory, generation: generation))
+        }
+        var installed: [KernelBootstrap.Installed] = []
+        for (package, file) in zip(packages, files) {
+            let contents = try await unpack(package.name, generation: generation) { progress in
+                try await builder.addPackage(at: file, progress: progress)
+            }
+            installed.append(KernelBootstrap.Installed(package: package, file: file, contents: contents))
+        }
+        try await bootstrap.register(installed, in: builder)
+        return mirror.id
+    }
+
+    private func download(
+        _ url: URL,
+        expectedBytes: Int64?,
+        into directory: URL,
+        generation: UInt64
+    ) async throws -> URL {
+        let name = url.lastPathComponent
+        let destination = directory.appending(path: "\(UUID().uuidString)-\(name)")
+        let epoch = consoleProgressEpoch
+        let start = ContinuousClock.now
+        defer {
+            endConsoleProgressLine(generation: generation)
+        }
+        try await HTTPClient.download(
+            from: [url],
+            to: destination,
+            expectedBytes: expectedBytes,
+            progress: { progress in
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated {
+                        LinuxSystem.shared.appendConsoleDownloadProgress(progress, name: name, start: start, generation: generation, epoch: epoch)
+                    }
+                }
+            }
+        )
+        return destination
+    }
+
+    private func unpack<Result>(
+        _ name: String?,
+        generation: UInt64,
+        _ body: (@escaping @Sendable (Double) -> Void) async throws -> Result
+    ) async throws -> Result {
+        let epoch = consoleProgressEpoch
+        let start = ContinuousClock.now
+        let result = try await body { fraction in
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    LinuxSystem.shared.appendConsoleExtractionProgress(name, fraction, start: start, generation: generation, epoch: epoch)
+                }
+            }
+        }
+        appendConsoleExtractionProgress(name, 1, start: start, generation: generation, epoch: epoch)
+        endConsoleProgressLine(generation: generation)
+        return result
+    }
+
     private func appendConsoleDownloadProgress(
         _ progress: HTTPDownloadProgress,
+        name: String? = nil,
         start: ContinuousClock.Instant,
         generation: UInt64,
         epoch: UInt64
     ) {
-        var meter = DownloadMeter(start: start)
+        var meter = DownloadMeter(start: start, name: name)
         if case let .download(current)? = openConsoleProgress?.meter {
             meter = current
         }
@@ -476,13 +556,14 @@ final class LinuxSystem {
     }
 
     private func appendConsoleExtractionProgress(
+        _ name: String?,
         _ fraction: Double,
         start: ContinuousClock.Instant,
         generation: UInt64,
         epoch: UInt64
     ) {
         updateConsoleProgress(
-            .extraction(fraction: fraction, elapsed: start.duration(to: .now)),
+            .extraction(name: name, fraction: fraction, elapsed: start.duration(to: .now)),
             generation: generation,
             epoch: epoch
         )
@@ -584,7 +665,6 @@ final class LinuxSystem {
     private func startRuntime(
         _ metadata: ContainerMetadata,
         initMode: ContainerInitMode,
-        kernel: LinuxRuntime.Configuration.Kernel,
         writesHostname: Bool,
         generation: UInt64
     ) async throws -> LinuxRuntime {
@@ -596,7 +676,6 @@ final class LinuxSystem {
         let configuration = LinuxRuntime.Configuration(
             root: Self.rootDirectoryURL,
             initMode: initMode.runtimeInitMode,
-            kernel: kernel,
             hostname: metadata.name,
             consoleOutput: { data in
                 let chunk = normalizer.normalize(data)
@@ -632,18 +711,7 @@ final class LinuxSystem {
         activeInitMode = metadata.initMode
         state = .booting
         do {
-            var bootedBundled = true
-            do {
-                try await bootRoot(metadata, kernel: .installed, generation: generation, bootedBundled: &bootedBundled)
-            } catch where !bootedBundled && !(error is CancellationError) && self.generation == generation {
-                await shutDownDetachedRuntime()
-                guard self.generation == generation else { return }
-                appendConsole(Data((
-                    "\r\n\u{1B}[1;31merror:\u{1B}[0m \(error.localizedDescription)\r\n" +
-                        "\u{1B}[1m==> Retrying with the built-in kernel\u{1B}[0m\r\n"
-                ).utf8), generation: generation)
-                try await bootRoot(metadata, kernel: .bundled, generation: generation, bootedBundled: &bootedBundled)
-            }
+            try await bootRoot(metadata, generation: generation)
             state = .running
             completeRunningWaiters()
         } catch is CancellationError {
@@ -657,33 +725,21 @@ final class LinuxSystem {
             cancelRunningWaiters()
             await shutDownDetachedRuntime()
             guard self.generation == generation else { return }
-            state = .failed(error.localizedDescription)
+            state = .failed(Self.failureMessage(error))
         }
     }
 
-    private func bootRoot(
-        _ metadata: ContainerMetadata,
-        kernel: LinuxRuntime.Configuration.Kernel,
-        generation: UInt64,
-        bootedBundled: inout Bool
-    ) async throws {
+    private func bootRoot(_ metadata: ContainerMetadata, generation: UInt64) async throws {
         var reboots = 0
         while true {
             let bootedRuntime = try await startRuntime(
                 metadata,
                 initMode: metadata.initMode,
-                kernel: kernel,
                 writesHostname: false,
                 generation: generation
             )
             let boot = runtimeBoot
-            let bootedKernel = bootedRuntime.bootedKernel
-            bootedBundled = bootedKernel.isBundled
-            var log = "\u{1B}[1m==> Linux \(bootedKernel.release)\(bootedKernel.isBundled ? " (built-in)" : "")\u{1B}[0m\r\n"
-            if let fallbackReason = bootedKernel.fallbackReason {
-                log += "\u{1B}[1;33mwarning:\u{1B}[0m \(fallbackReason)\r\n"
-            }
-            appendConsole(Data(log.utf8), generation: generation)
+            appendBootedKernel(bootedRuntime.bootedKernel, generation: generation)
 
             awaitingBootReadiness = true
             bootHalt = nil
@@ -701,11 +757,8 @@ final class LinuxSystem {
             }
             guard self.generation == generation else { throw CancellationError() }
             if !halted, bootHalt == nil {
-                if metadata.sshPort != nil, metadata.initMode == .managed {
-                    _ = try? await bootedRuntime.spawn(LinuxProcess.Configuration(
-                        executablePath: "/bin/sh",
-                        arguments: ["-c", "install -d -m 0755 /run/sshd && ssh-keygen -A >/dev/null 2>&1 || true; exec \"$(command -v sshd)\""]
-                    ))
+                if metadata.initMode == .managed {
+                    await Self.startManagedServices(bootedRuntime, metadata: metadata)
                     guard self.generation == generation else { throw CancellationError() }
                 }
                 if bootHalt == nil {
@@ -718,6 +771,30 @@ final class LinuxSystem {
             guard self.generation == generation else { throw CancellationError() }
             appendConsole(Data("\r\n\u{1B}[1m==> Rebooting\u{1B}[0m\r\n".utf8), generation: generation)
         }
+    }
+
+    private func appendBootedKernel(_ kernel: LinuxRuntime.BootedKernel, generation: UInt64) {
+        var log = "\u{1B}[1m==> Linux \(kernel.release)\u{1B}[0m\r\n"
+        if let fallbackReason = kernel.fallbackReason {
+            log += "\u{1B}[1;33mwarning:\u{1B}[0m \(fallbackReason.replacingOccurrences(of: "\n", with: "\r\n"))\r\n"
+        }
+        appendConsole(Data(log.utf8), generation: generation)
+    }
+
+    private nonisolated static func startManagedServices(_ runtime: LinuxRuntime, metadata: ContainerMetadata) async {
+        guard metadata.sshPort != nil else { return }
+        _ = try? await runtime.spawn(LinuxProcess.Configuration(
+            executablePath: "/bin/sh",
+            arguments: ["-c", "install -d -m 0755 /run/sshd && ssh-keygen -A >/dev/null 2>&1 || true; exec \"$(command -v sshd)\""]
+        ))
+    }
+
+    private nonisolated static func failureMessage(_ error: any Error) -> String {
+        guard let error = error as? LinuxRuntime.KernelUnavailableError else {
+            return error.localizedDescription
+        }
+        let message = String(localized: "This system has no kernel that can boot on this device. Use an archive that includes a 4K-page ARM64 kernel.")
+        return error.reasons.isEmpty ? message : message + "\n\n" + error.reasons.joined(separator: "\n")
     }
 
     private func waitForBootHalt(_ boot: UInt64) async {
@@ -749,13 +826,7 @@ final class LinuxSystem {
         installedContainer = metadata
         var metadata = metadata
         do {
-            var setupMode: ContainerInitMode = metadata.distribution?.requiresSystemInit == true ? .system : .managed
-            var (runtime, release) = try await bootForProvisioning(metadata, initMode: setupMode, generation: generation)
-            if setupMode == .managed, release?.distribution?.requiresSystemInit == true {
-                await shutDownDetachedRuntime()
-                setupMode = .system
-                (runtime, release) = try await bootForProvisioning(metadata, initMode: setupMode, generation: generation)
-            }
+            let (runtime, release) = try await bootForProvisioning(metadata, generation: generation)
             if metadata.distributionID == nil {
                 if let detected = release?.distribution {
                     metadata.distributionID = detected.rawValue
@@ -782,6 +853,7 @@ final class LinuxSystem {
                 user: metadata.defaultUser,
                 password: metadata.setup?.password,
                 mirrorID: metadata.setup?.mirrorID,
+                packageMirrorID: metadata.setup?.packageMirrorID,
                 software: metadata.setup?.software ?? ContainerSoftware()
             )
             let termination: LinuxProcess.Termination
@@ -833,40 +905,40 @@ final class LinuxSystem {
             guard self.generation == generation else { return }
             installedContainer = completed
 
-            await shutDownDetachedRuntime()
+            guard completed.initMode == activeInitMode else {
+                await shutDownDetachedRuntime()
+                guard self.generation == generation else { return }
+                await bootInstalledRoot(metadata: completed, generation: generation)
+                return
+            }
+            await Self.startManagedServices(runtime, metadata: completed)
             guard self.generation == generation else { return }
-            await bootInstalledRoot(metadata: completed, generation: generation)
+            state = .running
+            completeRunningWaiters()
         } catch {
             guard self.generation == generation else { return }
             await shutDownDetachedRuntime()
             guard self.generation == generation else { return }
             let message = haltedDuringProvisioning && !(error is StartupError)
                 ? StartupError.halted.localizedDescription
-                : error.localizedDescription
+                : Self.failureMessage(error)
             state = .provisioning(Provisioning(attempt: provisioningAttempt, failure: message))
         }
     }
 
-    private func bootForProvisioning(
-        _ metadata: ContainerMetadata,
-        initMode: ContainerInitMode,
-        generation: UInt64
-    ) async throws -> (LinuxRuntime, OSRelease?) {
-        activeInitMode = initMode
+    private func bootForProvisioning(_ metadata: ContainerMetadata, generation: UInt64) async throws -> (LinuxRuntime, OSRelease?) {
+        activeInitMode = .managed
         let bootedRuntime = try await startRuntime(
             metadata,
-            initMode: initMode,
-            kernel: .bundled,
+            initMode: .managed,
             writesHostname: true,
             generation: generation
         )
+        appendBootedKernel(bootedRuntime.bootedKernel, generation: generation)
         do {
             try await bootedRuntime.waitReady(.login, timeout: Self.loginTimeout)
         } catch let error as LinuxError where error == .ESRCH {
             throw StartupError.halted
-        }
-        if initMode == .system {
-            try? await bootedRuntime.waitReady(.system, timeout: Self.systemTimeout)
         }
         try Task.checkCancellation()
         return (bootedRuntime, await ContainerProvisioner.detectRelease(on: bootedRuntime))
@@ -1011,8 +1083,7 @@ final class LinuxSystem {
         return ContainerMetadata(
             name: request.containerName,
             distributionID: release?.distribution.rawValue,
-            distributionVariant: release?.variant,
-            systemInit: release.flatMap { $0.distribution.systemInit(variant: $0.variant) },
+            systemInit: release?.distribution.systemInit,
             installedAt: Date(),
             initMode: request.initMode,
             defaultUser: request.user,
@@ -1057,6 +1128,15 @@ final class LinuxSystem {
     private nonisolated static func items(in directory: URL, withPrefix prefix: String) -> [URL] {
         let items = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
         return items.filter { $0.lastPathComponent.hasPrefix(prefix) }
+    }
+
+    private nonisolated static func osRelease(in builder: LinuxRootImageBuilder) throws -> OSRelease? {
+        for path in ["/etc/os-release", "/usr/lib/os-release"] {
+            if let data = try builder.contents(of: path) {
+                return OSRelease(String(decoding: data, as: UTF8.self))
+            }
+        }
+        return nil
     }
 
     private nonisolated static func systemInit(in fileSystem: LinuxFileSystem, distribution: LinuxDistribution?) async -> SystemInit {

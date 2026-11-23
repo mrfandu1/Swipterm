@@ -1,6 +1,7 @@
 import Foundation
 
 nonisolated struct PackageMirror: Sendable {
+    let id: String
     let name: String
     let root: PackageRepositoryRoot
 }
@@ -36,7 +37,7 @@ nonisolated enum PackageMirrorResolver {
                 return official(for: distribution, release: release)
             }
             if let root = selected.packageRoot(for: distribution, release: release) {
-                return PackageMirror(name: selected.name, root: completed(root, for: distribution))
+                return PackageMirror(id: selected.id, name: selected.name, root: completed(root, for: distribution))
             }
         }
         let region = await DistributionMirrorRouter.regionDetector.region()
@@ -44,7 +45,7 @@ nonisolated enum PackageMirrorResolver {
             guard region != .global, mirror.region == region, let root = mirror.packageRoot(for: distribution, release: release) else {
                 return nil
             }
-            return PackageMirror(name: mirror.name, root: completed(root, for: distribution))
+            return PackageMirror(id: mirror.id, name: mirror.name, root: completed(root, for: distribution))
         }
         guard !candidates.isEmpty else {
             return official(for: distribution, release: release)
@@ -52,7 +53,7 @@ nonisolated enum PackageMirrorResolver {
         guard let path = probePath(for: distribution, release: release) else {
             return candidates[0]
         }
-        guard let mirror = await fastest(of: candidates, probing: path, freshness: distribution != .nixos) else {
+        guard let mirror = await fastest(of: candidates, probing: path) else {
             throw PackageMirrorError.unreachable(region)
         }
         return mirror
@@ -64,7 +65,7 @@ nonisolated enum PackageMirrorResolver {
             return nil
         default:
             let mirror = DistributionMirror.official
-            return mirror.packageRoot(for: distribution, release: release).map { PackageMirror(name: mirror.name, root: $0) }
+            return mirror.packageRoot(for: distribution, release: release).map { PackageMirror(id: mirror.id, name: mirror.name, root: $0) }
         }
     }
 
@@ -77,7 +78,7 @@ nonisolated enum PackageMirrorResolver {
         return root
     }
 
-    private static func fastest(of candidates: [PackageMirror], probing path: String, freshness: Bool) async -> PackageMirror? {
+    private static func fastest(of candidates: [PackageMirror], probing path: String) async -> PackageMirror? {
         var responders = await withTaskGroup(of: Responder?.self) { group in
             for candidate in candidates {
                 guard let url = URL(string: "\(candidate.root.url)/\(path)") else { continue }
@@ -106,7 +107,7 @@ nonisolated enum PackageMirrorResolver {
             group.cancelAll()
             return responded
         }
-        if freshness, let newest = responders.compactMap(\.probe.lastModified).max() {
+        if let newest = responders.compactMap(\.probe.lastModified).max() {
             responders.removeAll { responder in
                 guard let lastModified = responder.probe.lastModified else { return true }
                 return newest.timeIntervalSince(lastModified) > freshnessTolerance
@@ -131,12 +132,8 @@ nonisolated enum PackageMirrorResolver {
             return "dists/\(codename)/Release"
         case .fedora:
             return "releases/\(release.versionID ?? "")/Everything/aarch64/os/repodata/repomd.xml"
-        case .gentoo:
-            return "releases/arm64/binpackages/23.0/arm64/Packages"
         case .kali:
             return "dists/kali-rolling/Release"
-        case .nixos:
-            return "nix-cache-info"
         case .openEuler:
             return "openEuler-\(release.versionID ?? "")-LTS/OS/aarch64/repodata/repomd.xml"
         case .openSUSE:

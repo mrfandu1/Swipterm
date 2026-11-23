@@ -93,14 +93,14 @@ nonisolated enum ConsoleText {
 
 nonisolated enum ConsoleMeter {
     case download(DownloadMeter)
-    case extraction(fraction: Double, elapsed: Duration)
+    case extraction(name: String?, fraction: Double, elapsed: Duration)
 
     func lines(width: Int) -> [String] {
         switch self {
         case let .download(meter):
             meter.lines(width: width)
-        case let .extraction(fraction, elapsed):
-            ConsoleLayout.progress(name: nil, fields: [ConsoleFormat.clock(elapsed / .seconds(1))], fraction: fraction, width: width)
+        case let .extraction(name, fraction, elapsed):
+            ConsoleLayout.progress(name: name, fields: [ConsoleFormat.clock(elapsed / .seconds(1))], fraction: fraction, width: width)
         }
     }
 }
@@ -114,13 +114,15 @@ nonisolated struct DownloadMeter {
     private static let window = Duration.seconds(3)
 
     private let start: ContinuousClock.Instant
+    private let name: String?
     private var now: ContinuousClock.Instant
     private var progress: HTTPDownloadProgress?
     private var samples: [Sample] = []
     private var sourceSamples: [URL: [Sample]] = [:]
 
-    init(start: ContinuousClock.Instant) {
+    init(start: ContinuousClock.Instant, name: String? = nil) {
         self.start = start
+        self.name = name
         now = start
     }
 
@@ -148,7 +150,7 @@ nonisolated struct DownloadMeter {
             .compactMap(\.self)
         let fraction = progress.totalBytes.map { min(max(Double(progress.bytesWritten) / Double(max($0, 1)), 0), 1) }
         guard progress.sources.count > 1 else {
-            let name = progress.sources.first.map { source in
+            let name = name ?? progress.sources.first.map { source in
                 source.activeStreams > 1 ? "\(Self.host(source)) (\(source.activeStreams)x)" : Self.host(source)
             }
             return ConsoleLayout.progress(name: name, fields: fields, fraction: fraction, width: width)

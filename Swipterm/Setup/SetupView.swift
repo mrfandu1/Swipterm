@@ -274,7 +274,7 @@ struct SetupView: View {
     }
 
     private var selectedSystemInit: SystemInit? {
-        selectedDistribution?.systemInit(variant: selectedRelease?.variant)
+        selectedDistribution?.systemInit
     }
 
     private var showsStartupModePicker: Bool {
@@ -288,7 +288,7 @@ struct SetupView: View {
 
     private var remoteArchiveURL: URL? {
         let trimmed = draft.customRemoteURLText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let url = URL(string: trimmed), url.scheme?.lowercased() == "https", url.host != nil else {
+        guard let url = URL(string: trimmed), ["http", "https"].contains(url.scheme?.lowercased()), url.host != nil else {
             return nil
         }
         return url
@@ -366,7 +366,7 @@ struct SetupView: View {
             installSource = .localArchive(fileURL)
         case .archiveURL:
             guard let url = remoteArchiveURL else {
-                errorMessage = String(localized: "Enter a valid HTTPS archive URL.")
+                errorMessage = String(localized: "Enter a valid archive URL.")
                 return
             }
             installSource = .remoteArchive(url)

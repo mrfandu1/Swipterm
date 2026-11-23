@@ -48,11 +48,6 @@ nonisolated struct PackageRepositoryConfigurator {
         case .void:
             guard let root else { return [] }
             return try await configureXBPS(root)
-        case .gentoo:
-            guard let root else { return [] }
-            return try await configurePortage(root)
-        case .nixos:
-            return []
         }
     }
 
@@ -143,16 +138,6 @@ nonisolated struct PackageRepositoryConfigurator {
         guard updated != text else { return [] }
         try await fileSystem.writeFile(override, contents: Data(updated.utf8), permissions: 0o644)
         return [override]
-    }
-
-    private func configurePortage(_ root: PackageRepositoryRoot) async throws -> [String] {
-        var changed = try await rewrite(["/etc/portage/binrepos.conf/gentoo.conf"]) {
-            RepositoryText.portageBinrepo($0, root: root.url)
-        }
-        changed += try await rewrite(["/etc/portage/make.conf"]) {
-            RepositoryText.portageMirrors($0, root: root.url)
-        }
-        return changed
     }
 
     private func rewriteRepoFiles(_ transform: (String) -> String) async throws -> [String] {
@@ -381,33 +366,6 @@ private nonisolated enum RepositoryText {
             guard path(of: value) != nil, let current = value.range(of: "/current") else { return line }
             return "repository=\(root)\(value[current.lowerBound...])"
         }.joined(separator: "\n")
-    }
-
-    static func portageBinrepo(_ text: String, root: String) -> String {
-        lines(text).map { line in
-            guard iniKey(line) == "sync-uri", let separator = line.firstIndex(of: "=") else { return line }
-            let value = line[line.index(after: separator)...].trimmingCharacters(in: .whitespaces)
-            guard path(of: value) != nil, let releases = value.range(of: "/releases/") else { return line }
-            return "sync-uri = \(root)\(value[releases.lowerBound...])"
-        }.joined(separator: "\n")
-    }
-
-    static func portageMirrors(_ text: String, root: String) -> String {
-        let assignment = "GENTOO_MIRRORS=\"\(root)\""
-        var replaced = false
-        var output = lines(text).map { line in
-            guard iniKey(line) == "gentoo_mirrors" else { return line }
-            replaced = true
-            return assignment
-        }
-        if !replaced {
-            if output.last == "" {
-                output.insert(assignment, at: output.count - 1)
-            } else {
-                output.append(assignment)
-            }
-        }
-        return output.joined(separator: "\n")
     }
 
     private static func iniKey(_ line: String) -> String? {

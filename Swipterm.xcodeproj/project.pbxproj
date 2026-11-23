@@ -17,9 +17,22 @@
 		5D0000000000000000000101 /* Swipterm.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Swipterm.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		3A04BD0930B471BB00C2614F /* Exceptions for "Swipterm" folder in "Swipterm" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 5D0000000000000000000501 /* Swipterm */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		5D0000000000000000000301 /* Swipterm */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				3A04BD0930B471BB00C2614F /* Exceptions for "Swipterm" folder in "Swipterm" target */,
+			);
 			path = Swipterm;
 			sourceTree = "<group>";
 		};
@@ -280,6 +293,7 @@
 				ENABLE_PREVIEWS = YES;
 				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Swipterm/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Swipterm;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
@@ -319,6 +333,7 @@
 				ENABLE_PREVIEWS = YES;
 				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Swipterm/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Swipterm;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
@@ -383,7 +398,7 @@
 			repositoryURL = "https://github.com/swipt-automation/SwiptermKit";
 			requirement = {
 				kind = upToNextMinorVersion;
-				minimumVersion = 0.2.2026112301;
+				minimumVersion = 0.2.2026112302;
 			};
 		};
 		5D0000000000000000000A06 /* XCRemoteSwiftPackageReference "GRDB" */ = {

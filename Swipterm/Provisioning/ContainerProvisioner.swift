@@ -7,16 +7,9 @@ nonisolated enum ContainerProvisioner {
         let user: String
         let password: String?
         let mirrorID: String?
+        let packageMirrorID: String?
         let software: ContainerSoftware
     }
-
-    private static let nixPath = [
-        "nixpkgs=/nix/var/nix/profiles/per-user/root/channels/nixos",
-        "nixos-config=/etc/nixos/configuration.nix",
-        "/nix/var/nix/profiles/per-user/root/channels",
-    ].joined(separator: ":")
-
-    private static let officialNixCache = "https://cache.nixos.org/"
 
     static func detectRelease(on runtime: LinuxRuntime) async -> OSRelease? {
         for path in ["/etc/os-release", "/usr/lib/os-release"] {
@@ -96,48 +89,17 @@ nonisolated enum ContainerProvisioner {
         }
 
         if let distribution, let release {
-            let mirror = try await PackageMirrorResolver.resolve(for: distribution, release: release, mirrorID: request.mirrorID)
+            let mirror = try await PackageMirrorResolver.resolve(
+                for: distribution,
+                release: release,
+                mirrorID: request.packageMirrorID ?? request.mirrorID
+            )
             if let mirror {
                 await log("    \(distribution.displayName): \(mirror.name) (\(mirror.root.url))\r\n")
             }
             let configurator = PackageRepositoryConfigurator(fileSystem: runtime.fileSystem, distribution: distribution, release: release)
             for path in try await configurator.apply(mirror) {
                 await log("    \(path)\r\n")
-            }
-            let mirrorHost = mirror.flatMap { URL(string: $0.root.url)?.host() }
-            if distribution == .nixos {
-                var substituters: [String]?
-                if let root = mirror?.root, root.url != DistributionMirror.official.packages[.nixos]?.url {
-                    substituters = [root.url, officialNixCache]
-                }
-                let connectionLimit = mirrorHost?.hasSuffix(".edu.cn") == true ? 5 : nil
-                let module = nixOSSwiptermModule(
-                    hostname: request.hostname,
-                    user: request.user,
-                    substituters: substituters,
-                    connectionLimit: connectionLimit,
-                    stateVersion: release.versionID,
-                    software: software
-                )
-                try await runtime.fileSystem.writeFile(
-                    "/etc/nixos/swipterm.nix",
-                    contents: Data(module.utf8),
-                    permissions: 0o644
-                )
-                await log("    /etc/nixos/swipterm.nix\r\n")
-                try await runtime.fileSystem.writeFile(
-                    "/etc/nixos/configuration.nix",
-                    contents: Data(Self.nixOSConfiguration.utf8),
-                    permissions: 0o644
-                )
-                await log("    /etc/nixos/configuration.nix\r\n")
-                environment["NIX_PATH"] = nixPath
-                if let substituters {
-                    environment["SWIPTERM_NIX_SUBSTITUTERS"] = substituters.joined(separator: " ")
-                }
-                if let connectionLimit {
-                    environment["SWIPTERM_NIX_CONNECTIONS"] = String(connectionLimit)
-                }
             }
         }
 
@@ -154,153 +116,6 @@ nonisolated enum ContainerProvisioner {
 
     private static func step(_ message: String) -> String {
         "\u{1B}[1m==> \(message)\u{1B}[0m\r\n"
-    }
-
-    private static let nixOSConfiguration = """
-    { config, pkgs, ... }:
-
-    {
-      imports = [ ./swipterm.nix ];
-    }
-
-    """
-
-    private static func nixOSSwiptermModule(
-        hostname: String,
-        user: String,
-        substituters: [String]?,
-        connectionLimit: Int?,
-        stateVersion: String?,
-        software: ContainerSoftware
-    ) -> String {
-        func literal(_ value: String) -> String {
-            let escaped = value
-                .replacingOccurrences(of: "\\", with: "\\\\")
-                .replacingOccurrences(of: "\"", with: "\\\"")
-                .replacingOccurrences(of: "${", with: "\\${")
-            return "\"\(escaped)\""
-        }
-        func list(_ values: [String]) -> String {
-            "[ \(values.map(literal).joined(separator: " ")) ]"
-        }
-        var lines = [
-            "{ config, lib, pkgs, ... }:",
-            "",
-            "{",
-            "  imports = [ <nixpkgs/nixos/modules/virtualisation/lxc-container.nix> ];",
-            "",
-            "  boot.kernel.enable = lib.mkForce true;",
-            "",
-            "  networking.hostName = \(literal(hostname));",
-            "",
-            "  nix.settings.experimental-features = \(list(["nix-command", "flakes"]));",
-            "  nix.settings.trusted-users = \(list(["root", "@wheel"]));",
-        ]
-        if let substituters {
-            lines.append("  nix.settings.substituters = \(list(substituters));")
-        }
-        if let connectionLimit {
-            lines.append("  nix.settings.http-connections = \(connectionLimit);")
-            lines.append("  nix.settings.max-substitution-jobs = \(connectionLimit);")
-        }
-
-        var userAttributes: [String] = []
-        switch software.shell {
-        case .zsh:
-            lines += ["", "  programs.zsh.enable = true;"]
-            userAttributes.append("shell = pkgs.zsh;")
-        case .fish:
-            lines += ["", "  programs.fish.enable = true;"]
-            userAttributes.append("shell = pkgs.fish;")
-        case .nushell:
-            lines += ["", "  environment.shells = [ pkgs.nushell ];"]
-            userAttributes.append("shell = pkgs.nushell;")
-        case .ash, .bash, nil:
-            break
-        }
-
-        if let ssh = software.ssh {
-            var settings = [
-                "PasswordAuthentication = \(ssh.authentication.allowsPassword);",
-                "KbdInteractiveAuthentication = \(ssh.authentication.allowsPassword);",
-                "PubkeyAuthentication = \(ssh.authentication.allowsPublicKey);",
-            ]
-            if user == "root" {
-                settings.append("PermitRootLogin = \(literal(ssh.authentication.allowsPassword ? "yes" : "prohibit-password"));")
-            }
-            lines += ["", "  services.openssh = {", "    enable = true;", "    ports = [ \(ssh.port) ];", "    settings = {"]
-            lines += settings.map { "      \($0)" }
-            lines += ["    };", "  };"]
-            let keys = ssh.authorizedKeys
-                .split(whereSeparator: \.isNewline)
-                .map { $0.trimmingCharacters(in: .whitespaces) }
-                .filter { !$0.isEmpty && !$0.hasPrefix("#") }
-            if ssh.authentication.allowsPublicKey, !keys.isEmpty {
-                userAttributes.append("openssh.authorizedKeys.keys = \(list(keys));")
-            }
-        }
-
-        let developerTools = software.installedDeveloperTools
-        let packages = DeveloperTool.allCases.filter(developerTools.contains).flatMap { tool -> [String] in
-            switch tool {
-            case .buildEssentials: ["gcc", "gnumake"]
-            case .git: ["git"]
-            case .gnupg: ["gnupg"]
-            case .node: ["nodejs_24"]
-            case .npm: []
-            case .pnpm: ["pnpm"]
-            case .bun: ["bun"]
-            case .go: ["go"]
-            case .python: ["(python3.withPackages (ps: [ ps.pip ]))"]
-            case .rust: ["rustc", "cargo"]
-            }
-        }
-        if !packages.isEmpty {
-            lines += ["", "  environment.systemPackages = with pkgs; [ \(packages.joined(separator: " ")) ];"]
-        }
-        if !software.agents.isEmpty {
-            lines += ["", "  programs.nix-ld.enable = true;"]
-        }
-        var extraInit = ["export PATH=\"$PATH:/run/host-bin\""]
-        if !developerTools.isEmpty || !software.agents.isEmpty {
-            lines += ["", "  environment.localBinInPath = true;"]
-            extraInit = [
-                "export PNPM_HOME=\"$HOME/.local/share/pnpm\"",
-                "export PATH=\"$HOME/.cargo/bin:$HOME/.bun/bin:$PNPM_HOME:$PNPM_HOME/bin:$HOME/go/bin:$PATH:/run/host-bin\"",
-            ]
-        }
-        lines += ["", "  environment.extraInit = ''"] + extraInit.map { "    \($0)" } + ["  '';"]
-
-        if user != "root" {
-            lines += [
-                "",
-                "  users.users.\(literal(user)) = {",
-                "    isNormalUser = true;",
-                "    extraGroups = \(list(["wheel"]));",
-            ]
-            lines += userAttributes.map { "    \($0)" }
-            lines += [
-                "  };",
-                "",
-                "  security.sudo.extraRules = [",
-                "    {",
-                "      users = \(list([user]));",
-                "      commands = [",
-                "        { command = \"ALL\"; options = \(list(["NOPASSWD"])); }",
-                "      ];",
-                "    }",
-                "  ];",
-            ]
-        } else if !userAttributes.isEmpty {
-            lines += ["", "  users.users.root = {"]
-            lines += userAttributes.map { "    \($0)" }
-            lines.append("  };")
-        }
-        if let stateVersion, stateVersion.wholeMatch(of: /[0-9]+\.[0-9]+/) != nil {
-            lines += ["", "  system.stateVersion = \(literal(stateVersion));"]
-        }
-        lines += ["}", ""]
-        return lines.joined(separator: "\n")
     }
 
     private static let setupScript = #"""
@@ -399,12 +214,6 @@ nonisolated enum ContainerProvisioner {
         curl -fL --retry 3 --progress-bar -o "$2" "$1"
     }
 
-    verify() {
-        if [ "$("${1}sum" "$3" | cut -d ' ' -f 1)" != "$2" ]; then
-            fail "The $1 checksum of $4 does not match."
-        fi
-    }
-
     json_value() {
         grep -o "\"$1\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" | head -n 1 | sed 's/.*"\([^"]*\)"$/\1/'
     }
@@ -416,8 +225,6 @@ nonisolated enum ContainerProvisioner {
         /*) tarball=$npm_registry$tarball ;;
         esac
         download "$tarball" "$3"
-        integrity=$(json_value integrity < "$work/package.json")
-        verify sha512 "$(printf '%s' "${integrity#sha512-}" | base64 -d | od -An -v -tx1 | tr -d ' \n')" "$3" "$1"
     }
 
     as_user() {
@@ -457,134 +264,47 @@ nonisolated enum ContainerProvisioner {
         fi
     }
 
-    gentoo_sync() {
-        if [ ! -d /var/db/repos/gentoo/profiles ]; then
-            step "Portage"
-            emerge-webrsync
-        fi
-    }
-
-    prepare_gentoo() {
-        if ! have sudo; then
-            gentoo_sync
-            step "sudo"
-            emerge --getbinpkg --usepkg --noreplace app-admin/sudo
-        fi
-    }
-
-    has_kernel() {
-        running=$(uname -r)
-        for modules in /lib/modules/* /usr/lib/modules/*; do
-            kver=${modules##*/}
-            if [ "$kver" = "$running" ] || [ ! -f "$modules/modules.dep" ]; then
-                continue
-            fi
-            if [ -s "$modules/vmlinuz" ] || [ -s "$modules/Image" ] ||
-                [ -s "/boot/vmlinuz-$kver" ] || [ -s "/boot/vmlinux-$kver" ] ||
-                [ -s "/boot/Image-$kver" ] || [ -s "/boot/kernel-$kver" ] ||
-                [ -s /boot/vmlinuz-virt ] || [ -s /boot/Image.gz ] || [ -s /boot/Image ]; then
-                return 0
+    index_modules() {
+        release=$(uname -r)
+        for modules in "/lib/modules/$release" "/usr/lib/modules/$release"; do
+            if [ -d "$modules" ] && [ ! -e "$modules/modules.dep.bin" ]; then
+                have depmod || install_packages kmod
+                depmod "$release"
+                break
             fi
         done
-        return 1
     }
 
-    install_kernel() {
-        case "$SWIPTERM_DISTRIBUTION" in
-        debian | devuan | kali | ubuntu)
-            set_option /etc/initramfs-tools/update-initramfs.conf update_initramfs no
-            INITRD=No dpkg --force-confold --configure -a
-            ;;
-        esac
-        has_kernel && return 0
-        case "$SWIPTERM_DISTRIBUTION:$SWIPTERM_VERSION_ID" in
-        alma:8 | alma:8.* | rocky:8 | rocky:8.*)
-            warn "Version 8 of this distribution only ships 64K-page kernels; using the built-in kernel."
+    reconcile_kernel() {
+        staged=/var/lib/swipterm/kernel
+        if [ ! -d "$staged" ]; then
+            index_modules
             return 0
-            ;;
-        esac
+        fi
         step "Kernel"
         case "$SWIPTERM_DISTRIBUTION" in
         debian | devuan | kali | ubuntu)
+            set_option /etc/initramfs-tools/update-initramfs.conf update_initramfs no
             apt-get update
-            case "$SWIPTERM_DISTRIBUTION" in
-            ubuntu)
-                INITRD=No apt-get install -y --no-install-recommends -o Dpkg::Options::=--force-confold \
-                    linux-image-virtual
-                ;;
-            kali)
-                INITRD=No apt-get install -y --no-install-recommends -o Dpkg::Options::=--force-confold \
-                    linux-image-cloud-arm64 initramfs-tools ||
-                    INITRD=No apt-get install -y --no-install-recommends -o Dpkg::Options::=--force-confold \
-                        linux-image-arm64 initramfs-tools
-                ;;
-            *)
-                INITRD=No apt-get install -y --no-install-recommends -o Dpkg::Options::=--force-confold \
-                    linux-image-cloud-arm64 initramfs-tools
-                ;;
-            esac
+            INITRD=No apt-get install -f -y --no-install-recommends -o Dpkg::Options::=--force-confold
             ;;
         alpine)
             set_option /etc/mkinitfs/mkinitfs.conf disable_trigger yes
-            apk add --no-cache linux-virt
             ;;
         arch)
-            if [ -e /var/lib/pacman/db.lck ] && ! pgrep -x pacman >/dev/null 2>&1; then
-                rm -f /var/lib/pacman/db.lck
-            fi
             mask /etc/pacman.d/hooks/90-mkinitcpio-install.hook
-            pacman -Syu --noconfirm --needed --disable-download-timeout linux-aarch64
             ;;
-        alma | centos | fedora | openEuler | oracle | rocky)
+        alma | centos | fedora | openEuler | openSUSE | oracle | rocky)
             mask /etc/kernel/install.d/50-dracut.install /etc/kernel/install.d/20-grub.install
-            case "$SWIPTERM_DISTRIBUTION:$SWIPTERM_VERSION_ID" in
-            openEuler:*)
+            if [ "$SWIPTERM_DISTRIBUTION" = openEuler ] && ! grep -qs '^dracut()' /etc/sysconfig/kernel; then
                 mkdir -p /etc/sysconfig
-                if ! grep -qs '^dracut()' /etc/sysconfig/kernel; then
-                    printf 'dracut() { :; }\n' >> /etc/sysconfig/kernel
-                fi
-                dnf -y --setopt=install_weak_deps=False install kernel
-                ;;
-            oracle:8 | oracle:8.*)
-                uek=$(dnf -q repoquery --latest-limit=1 kernel-uek-core)
-                if [ -z "$uek" ]; then
-                    warn "No 4K-page UEK kernel is available; using the built-in kernel."
-                    return 0
-                fi
-                dnf -y --setopt=install_weak_deps=False install kernel-uek-core
-                ;;
-            oracle:*)
-                dnf -y --setopt=install_weak_deps=False install kernel-core kernel-modules-core ||
-                    dnf -y --setopt=install_weak_deps=False install kernel-uek-core
-                ;;
-            *)
-                dnf -y --setopt=install_weak_deps=False install kernel-core kernel-modules-core
-                ;;
-            esac
-            ;;
-        openSUSE)
-            mask /etc/kernel/install.d/50-dracut.install
-            DRACUT=/usr/bin/true zypper --non-interactive install --no-recommends kernel-kvmsmall ||
-                DRACUT=/usr/bin/true zypper --non-interactive install --no-recommends kernel-default-base
-            ;;
-        void)
-            xbps-install -Suy xbps
-            package=$(xbps-query -Rs --regex '^linux6\.[0-9]+-[0-9]' |
-                sed -n 's/^\[.\] \(linux6\.[0-9]*\)-.*/\1/p' | sort -t . -k 2 -n | tail -n 1)
-            if [ -n "$package" ]; then
-                xbps-install -Sy "$package"
-            else
-                xbps-install -Sy linux6.12 || xbps-install -Sy linux
+                printf 'dracut() { :; }\n' >> /etc/sysconfig/kernel
             fi
-            ;;
-        gentoo)
-            gentoo_sync
-            if ! emerge --ask=n --autounmask=n --getbinpkg=y --usepkgonly virtual/dist-kernel &&
-                ! emerge --ask=n --autounmask=n --getbinpkg=y --usepkgonly sys-kernel/gentoo-kernel-bin; then
-                warn "No prebuilt Gentoo kernel binary package is available; using the built-in kernel."
-            fi
+            rpm -i --justdb --nodeps --noscripts --notriggers --nodigest --nosignature --replacepkgs "$staged"/*.rpm
             ;;
         esac
+        index_modules
+        rm -rf "$staged"
     }
 
     add() {
@@ -608,9 +328,7 @@ nonisolated enum ContainerProvisioner {
         packages=
         case "${SWIPTERM_SHELL:-}:$SWIPTERM_DISTRIBUTION" in
         bash:*) have bash || add bash ;;
-        zsh:gentoo) have zsh || add app-shells/zsh ;;
         zsh:*) have zsh || add zsh ;;
-        fish:gentoo) have fish || add app-shells/fish ;;
         fish:void) have fish || add fish-shell ;;
         fish:*) have fish || add fish ;;
         nushell:*) have nu || add nushell ;;
@@ -618,7 +336,6 @@ nonisolated enum ContainerProvisioner {
         if [ -n "${SWIPTERM_SSH_PORT:-}" ] && ! have sshd; then
             case "$SWIPTERM_DISTRIBUTION" in
             arch | void) add openssh ;;
-            gentoo) add net-misc/openssh ;;
             *) add openssh-server ;;
             esac
         fi
@@ -627,21 +344,16 @@ nonisolated enum ContainerProvisioner {
             alpine) add build-base ;;
             arch | void) add base-devel ;;
             debian | devuan | kali | ubuntu) add build-essential ;;
-            gentoo) ;;
             *) add gcc gcc-c++ make ;;
             esac
         fi
         if want_tool git && ! have git; then
-            case "$SWIPTERM_DISTRIBUTION" in
-            gentoo) add dev-vcs/git ;;
-            *) add git ;;
-            esac
+            add git
         fi
         if want_tool gnupg && ! have gpg; then
             case "$SWIPTERM_DISTRIBUTION" in
             alma | centos | fedora | openEuler | oracle | rocky) add gnupg2 ;;
             openSUSE) add gpg2 ;;
-            gentoo) add app-crypt/gnupg ;;
             *) add gnupg ;;
             esac
         fi
@@ -650,7 +362,6 @@ nonisolated enum ContainerProvisioner {
             alpine) add python3 py3-pip ;;
             arch) add python python-pip ;;
             debian | devuan | kali | ubuntu) add python3 python3-pip python3-venv ;;
-            gentoo) add dev-python/pip ;;
             *) add python3 python3-pip ;;
             esac
         fi
@@ -658,20 +369,17 @@ nonisolated enum ContainerProvisioner {
             case "$SWIPTERM_DISTRIBUTION" in
             alma | centos | fedora | oracle | rocky) add golang ;;
             debian | kali | ubuntu) add golang-go ;;
-            gentoo) add dev-lang/go ;;
             *) add go ;;
             esac
         fi
         if want_tool node; then
             if has_recent_packages; then
-                case "$SWIPTERM_DISTRIBUTION" in
-                gentoo) add net-libs/nodejs ;;
-                openSUSE) ;;
-                *) add nodejs ;;
-                esac
+                if [ "$SWIPTERM_DISTRIBUTION" != openSUSE ]; then
+                    add nodejs
+                fi
                 if want_tool npm; then
                     case "$SWIPTERM_DISTRIBUTION" in
-                    gentoo | openSUSE | void) ;;
+                    openSUSE | void) ;;
                     *) add npm ;;
                     esac
                 fi
@@ -699,13 +407,9 @@ nonisolated enum ContainerProvisioner {
             fi
         fi
         if downloads_upstream; then
-            if [ "$SWIPTERM_DISTRIBUTION" = gentoo ]; then
-                have curl || add net-misc/curl
-            else
-                have curl || add curl
-                have tar || add tar
-                add ca-certificates
-            fi
+            have curl || add curl
+            have tar || add tar
+            add ca-certificates
         fi
     }
 
@@ -719,6 +423,9 @@ nonisolated enum ContainerProvisioner {
             apk add --no-cache "$@"
             ;;
         arch)
+            if [ -e /var/lib/pacman/db.lck ] && ! pgrep -x pacman >/dev/null 2>&1; then
+                rm -f /var/lib/pacman/db.lck
+            fi
             pacman -Syu --noconfirm --needed --disable-download-timeout "$@"
             ;;
         alma | centos | fedora | openEuler | oracle | rocky)
@@ -738,10 +445,6 @@ nonisolated enum ContainerProvisioner {
         void)
             xbps-install -Suy xbps
             xbps-install -Sy "$@"
-            ;;
-        gentoo)
-            gentoo_sync
-            emerge --ask=n --getbinpkg --usepkg --noreplace "$@"
             ;;
         esac
     }
@@ -771,9 +474,7 @@ nonisolated enum ContainerProvisioner {
         base=${SWIPTERM_GO_DIST:-https://go.dev/dl}
         fetch "$base/?mode=json" > "$work/go.json"
         archive=$(sed -n 's/.*"filename"[[:space:]]*:[[:space:]]*"\(go[^"]*\.linux-arm64\.tar\.gz\)".*/\1/p' "$work/go.json" | head -n 1)
-        sha256=$(sed -n "/\"$archive\"/,/\"sha256\"/s/.*\"sha256\"[[:space:]]*:[[:space:]]*\"\([0-9a-f]*\)\".*/\1/p" "$work/go.json" | head -n 1)
         download "$base/$archive" "$work/$archive"
-        verify sha256 "$sha256" "$work/$archive" "$archive"
         rm -rf /usr/local/go
         tar -xzf "$work/$archive" -C /usr/local
     }
@@ -785,10 +486,8 @@ nonisolated enum ContainerProvisioner {
         step "Node.js"
         base=${SWIPTERM_NODE_DIST:-https://nodejs.org/dist}/latest-v24.x
         fetch "$base/SHASUMS256.txt" > "$work/SHASUMS256.txt"
-        checksum=$(grep ' node-v[0-9.]*-linux-arm64\.tar\.gz$' "$work/SHASUMS256.txt" | head -n 1)
-        archive=${checksum##* }
+        archive=$(grep -o 'node-v[0-9.]*-linux-arm64\.tar\.gz$' "$work/SHASUMS256.txt" | head -n 1)
         download "$base/$archive" "$work/$archive"
-        verify sha256 "${checksum%% *}" "$work/$archive" "$archive"
         tar -xzf "$work/$archive" -C "$work"
         node=$work/${archive%.tar.gz}
         if ! want_tool npm; then
@@ -1104,13 +803,6 @@ nonisolated enum ContainerProvisioner {
                 ln -sfn /etc/sv/sshd /etc/runit/runsvdir/default/sshd
             fi
             ;;
-        gentoo:*)
-            if have rc-update; then
-                rc-update add sshd default
-            elif have systemctl; then
-                systemctl enable sshd.service
-            fi
-            ;;
         *)
             if have systemctl; then
                 systemctl enable sshd.service
@@ -1197,7 +889,6 @@ nonisolated enum ContainerProvisioner {
             target=aarch64-unknown-linux-musl
         fi
         download "$rustup_server/rustup/dist/$target/rustup-init" "$work/rustup-init"
-        verify sha256 "$(fetch "$rustup_server/rustup/dist/$target/rustup-init.sha256" | cut -d ' ' -f 1)" "$work/rustup-init" rustup-init
         rustup_dir=$(mktemp -d /tmp/swipterm-rustup.XXXXXX)
         chown "$user:$user_group" "$rustup_dir"
         install -m 0755 "$work/rustup-init" "$rustup_dir/rustup-init"
@@ -1216,7 +907,6 @@ nonisolated enum ContainerProvisioner {
         fi
         fetch "https://antigravity-cli-auto-updater-974169037036.us-central1.run.app/manifests/$platform.json" > "$work/antigravity.json"
         download "$(json_value url < "$work/antigravity.json")" "$work/antigravity.tar.gz"
-        verify sha512 "$(json_value sha512 < "$work/antigravity.json")" "$work/antigravity.tar.gz" "Antigravity CLI"
         mkdir "$work/antigravity"
         tar -xzf "$work/antigravity.tar.gz" -C "$work/antigravity"
         as_user 'mkdir -p "$HOME/.local/bin"'
@@ -1283,36 +973,14 @@ nonisolated enum ContainerProvisioner {
     fi
     npm_registry=${SWIPTERM_NPM_REGISTRY:-https://registry.npmjs.org}
 
+    reconcile_kernel
     case "$SWIPTERM_DISTRIBUTION" in
-    nixos)
-        step "NixOS"
-        set -- switch
-        if [ -n "${SWIPTERM_NIX_SUBSTITUTERS:-}" ]; then
-            set -- "$@" --option substituters "$SWIPTERM_NIX_SUBSTITUTERS"
-        fi
-        if [ -n "${SWIPTERM_NIX_CONNECTIONS:-}" ]; then
-            set -- "$@" --option http-connections "$SWIPTERM_NIX_CONNECTIONS" \
-                --option max-substitution-jobs "$SWIPTERM_NIX_CONNECTIONS"
-        fi
-        nixos-rebuild "$@"
-        if [ -n "${SWIPTERM_PASSWORD:-}" ]; then
-            printf '%s:%s\n' "$user" "$SWIPTERM_PASSWORD" | chpasswd
-        fi
-        load_user
-        create_shell_config
-        configure_mirrors
-        install_agents
-        step "Done"
-        exit 0
-        ;;
     arch) prepare_arch ;;
     alpine) prepare_alpine ;;
     alma | centos | fedora | openEuler | oracle | rocky) prepare_dnf ;;
-    gentoo) prepare_gentoo ;;
     esac
 
     if [ -n "$SWIPTERM_DISTRIBUTION" ]; then
-        install_kernel
         install_software
     fi
 

@@ -2,9 +2,7 @@ import Foundation
 
 nonisolated enum MirrorRepository: String, Codable, Hashable, Sendable {
     case lxc
-    case gentoo
     case void
-    case nixos
 }
 
 nonisolated enum MirrorRegion: CaseIterable, Hashable, Sendable {
@@ -35,11 +33,11 @@ nonisolated enum MirrorRegion: CaseIterable, Hashable, Sendable {
                 "https://mirrors.sjtug.sjtu.edu.cn/alpine/MIRRORS.txt",
             ]
         case .apac:
-            ["https://mirror.freedif.org/gentoo/releases/arm64/autobuilds/latest-stage3-arm64-systemd.txt"]
+            ["https://mirror.freedif.org/debian/README"]
         case .na:
-            ["https://gentoo.osuosl.org/releases/arm64/autobuilds/latest-stage3-arm64-systemd.txt"]
+            ["https://debian.osuosl.org/debian/README"]
         case .eu:
-            ["https://ftp.fau.de/gentoo/releases/arm64/autobuilds/latest-stage3-arm64-systemd.txt"]
+            ["https://ftp.fau.de/debian/README"]
         }
         return urls.map { URL(string: $0)! }
     }
@@ -60,16 +58,8 @@ nonisolated struct MirrorEndpoint: Hashable, Sendable {
         MirrorEndpoint(repository: .lxc, baseURL: URL(string: base)!, lxcIndexPath: index)
     }
 
-    fileprivate static func gentoo(_ base: String) -> MirrorEndpoint {
-        MirrorEndpoint(repository: .gentoo, baseURL: URL(string: base)!, lxcIndexPath: nil)
-    }
-
     fileprivate static func void(_ base: String) -> MirrorEndpoint {
         MirrorEndpoint(repository: .void, baseURL: URL(string: base)!, lxcIndexPath: nil)
-    }
-
-    fileprivate static func nixos(_ base: String) -> MirrorEndpoint {
-        MirrorEndpoint(repository: .nixos, baseURL: URL(string: base)!, lxcIndexPath: nil)
     }
 }
 
@@ -137,10 +127,8 @@ nonisolated struct DistributionMirror: Identifiable, Sendable {
 
     static let official = DistributionMirror(id: "official", name: "Official", region: .global, endpoints: [
         .lxc("https://images.linuxcontainers.org", index: "streams/v1/images.json"),
-        .gentoo("https://distfiles.gentoo.org"),
         .void("https://repo-fastly.voidlinux.org"),
         .void("https://repo-default.voidlinux.org"),
-        .nixos("https://hydra.nixos.org"),
     ], packages: [
         .alma: "https://repo.almalinux.org/almalinux",
         .alpine: "https://dl-cdn.alpinelinux.org/alpine",
@@ -149,9 +137,7 @@ nonisolated struct DistributionMirror: Identifiable, Sendable {
         .debian: .init("https://deb.debian.org/debian", security: "https://deb.debian.org/debian-security"),
         .devuan: "https://pkgmaster.devuan.org/merged",
         .fedora: "https://dl.fedoraproject.org/pub/fedora/linux",
-        .gentoo: "https://distfiles.gentoo.org",
         .kali: "https://kali.download/kali",
-        .nixos: "https://cache.nixos.org",
         .openEuler: "https://repo.openeuler.org",
         .openSUSE: .init("https://download.opensuse.org", tumbleweed: true),
         .oracle: "https://yum.oracle.com/repo/OracleLinux",
@@ -164,7 +150,6 @@ nonisolated struct DistributionMirror: Identifiable, Sendable {
         official,
         DistributionMirror(id: "cn-tuna", name: "TUNA", region: .cn, endpoints: [
             .lxc("https://mirrors.tuna.tsinghua.edu.cn/lxc-images", index: "meta/simplestreams/v1/images.json"),
-            .gentoo("https://mirrors.tuna.tsinghua.edu.cn/gentoo"),
             .void("https://mirrors.tuna.tsinghua.edu.cn/voidlinux"),
         ], packages: [
             .alpine: "https://mirrors.tuna.tsinghua.edu.cn/alpine",
@@ -176,9 +161,7 @@ nonisolated struct DistributionMirror: Identifiable, Sendable {
             ),
             .devuan: "https://mirrors.tuna.tsinghua.edu.cn/devuan/merged",
             .fedora: "https://mirrors.tuna.tsinghua.edu.cn/fedora",
-            .gentoo: "https://mirrors.tuna.tsinghua.edu.cn/gentoo",
             .kali: "https://mirrors.tuna.tsinghua.edu.cn/kali",
-            .nixos: "https://mirrors.tuna.tsinghua.edu.cn/nix-channels/store",
             .openEuler: "https://mirrors.tuna.tsinghua.edu.cn/openeuler",
             .openSUSE: .init("https://mirrors.tuna.tsinghua.edu.cn/opensuse", tumbleweed: true),
             .ubuntu: "https://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports",
@@ -186,7 +169,6 @@ nonisolated struct DistributionMirror: Identifiable, Sendable {
         ]),
         DistributionMirror(id: "cn-nju", name: "NJU", region: .cn, endpoints: [
             .lxc("https://mirrors.nju.edu.cn/lxc-images", index: "meta/simplestreams/v1/images.json"),
-            .gentoo("https://mirrors.nju.edu.cn/gentoo"),
             .void("https://mirrors.nju.edu.cn/voidlinux"),
         ], packages: [
             .alma: "https://mirrors.nju.edu.cn/almalinux",
@@ -195,16 +177,13 @@ nonisolated struct DistributionMirror: Identifiable, Sendable {
             .centos: "https://mirrors.nju.edu.cn/centos-stream",
             .debian: .init("https://mirrors.nju.edu.cn/debian", security: "https://mirrors.nju.edu.cn/debian-security"),
             .devuan: "https://mirrors.nju.edu.cn/devuan/merged",
-            .gentoo: "https://mirrors.nju.edu.cn/gentoo",
             .kali: "https://mirrors.nju.edu.cn/kali",
             .openEuler: "https://mirrors.nju.edu.cn/openeuler",
             .openSUSE: .init("https://mirrors.nju.edu.cn/opensuse", tumbleweed: true),
             .rocky: "https://mirrors.nju.edu.cn/rocky",
             .ubuntu: "https://mirrors.nju.edu.cn/ubuntu-ports",
         ]),
-        DistributionMirror(id: "cn-huawei", name: "Huawei Cloud", region: .cn, endpoints: [
-            .gentoo("https://mirrors.huaweicloud.com/gentoo"),
-        ], packages: [
+        DistributionMirror(id: "cn-huawei", name: "Huawei Cloud", region: .cn, endpoints: [], packages: [
             .alma: "https://mirrors.huaweicloud.com/almalinux",
             .alpine: "https://mirrors.huaweicloud.com/alpine",
             .centos: "https://mirrors.huaweicloud.com/centos-stream",
@@ -213,7 +192,6 @@ nonisolated struct DistributionMirror: Identifiable, Sendable {
                 security: "https://mirrors.huaweicloud.com/debian-security"
             ),
             .fedora: "https://mirrors.huaweicloud.com/fedora",
-            .gentoo: "https://mirrors.huaweicloud.com/gentoo",
             .kali: "https://mirrors.huaweicloud.com/kali",
             .openEuler: "https://mirrors.huaweicloud.com/openeuler",
             .openSUSE: "https://mirrors.huaweicloud.com/opensuse",
@@ -230,7 +208,6 @@ nonisolated struct DistributionMirror: Identifiable, Sendable {
             .debian: .init("https://mirror.nyist.edu.cn/debian", security: "https://mirror.nyist.edu.cn/debian-security"),
             .fedora: "https://mirror.nyist.edu.cn/fedora",
             .kali: "https://mirror.nyist.edu.cn/kali",
-            .nixos: "https://mirror.nyist.edu.cn/nix-channels/store",
             .openSUSE: "https://mirror.nyist.edu.cn/opensuse",
             .rocky: "https://mirror.nyist.edu.cn/rocky",
             .ubuntu: "https://mirror.nyist.edu.cn/ubuntu-ports",
@@ -247,14 +224,12 @@ nonisolated struct DistributionMirror: Identifiable, Sendable {
             ),
             .fedora: "https://mirrors.sjtug.sjtu.edu.cn/fedora/linux",
             .kali: "https://mirrors.sjtug.sjtu.edu.cn/kali",
-            .nixos: "https://mirrors.sjtug.sjtu.edu.cn/nix-channels/store",
             .openEuler: "https://mirrors.sjtug.sjtu.edu.cn/openeuler",
             .openSUSE: .init("https://mirrors.sjtug.sjtu.edu.cn/opensuse", tumbleweed: true),
             .rocky: "https://mirrors.sjtug.sjtu.edu.cn/rocky",
             .ubuntu: "https://mirrors.sjtug.sjtu.edu.cn/ubuntu-ports",
         ]),
         DistributionMirror(id: "cn-zju", name: "ZJU", region: .cn, endpoints: [
-            .gentoo("https://mirrors.zju.edu.cn/gentoo"),
             .void("https://mirrors.zju.edu.cn/voidlinux"),
         ], packages: [
             .alma: "https://mirrors.zju.edu.cn/almalinux",
@@ -263,24 +238,19 @@ nonisolated struct DistributionMirror: Identifiable, Sendable {
             .centos: "https://mirrors.zju.edu.cn/centos-stream",
             .debian: .init("https://mirrors.zju.edu.cn/debian", security: "https://mirrors.zju.edu.cn/debian-security"),
             .fedora: "https://mirrors.zju.edu.cn/fedora",
-            .gentoo: "https://mirrors.zju.edu.cn/gentoo",
             .kali: "https://mirrors.zju.edu.cn/kali",
-            .nixos: "https://mirrors.zju.edu.cn/nix-channels/store",
             .openEuler: "https://mirrors.zju.edu.cn/openeuler",
             .openSUSE: .init("https://mirrors.zju.edu.cn/opensuse", tumbleweed: true),
             .rocky: "https://mirrors.zju.edu.cn/rocky",
             .ubuntu: "https://mirrors.zju.edu.cn/ubuntu-ports",
             .void: "https://mirrors.zju.edu.cn/voidlinux",
         ]),
-        DistributionMirror(id: "cn-ustc", name: "USTC", region: .cn, endpoints: [
-            .gentoo("https://mirrors.ustc.edu.cn/gentoo"),
-        ], packages: [
+        DistributionMirror(id: "cn-ustc", name: "USTC", region: .cn, endpoints: [], packages: [
             .alpine: "https://mirrors.ustc.edu.cn/alpine",
             .arch: "https://mirrors.ustc.edu.cn/archlinuxarm",
             .centos: "https://mirrors.ustc.edu.cn/centos-stream",
             .debian: .init("https://mirrors.ustc.edu.cn/debian", security: "https://mirrors.ustc.edu.cn/debian-security"),
             .fedora: "https://mirrors.ustc.edu.cn/fedora",
-            .gentoo: "https://mirrors.ustc.edu.cn/gentoo",
             .kali: "https://mirrors.ustc.edu.cn/kali",
             .openEuler: "https://mirrors.ustc.edu.cn/openeuler",
             .openSUSE: "https://mirrors.ustc.edu.cn/opensuse",
@@ -297,7 +267,6 @@ nonisolated struct DistributionMirror: Identifiable, Sendable {
             .debian: .init("https://mirrors.ha.edu.cn/debian", security: "https://mirrors.ha.edu.cn/debian-security"),
             .fedora: "https://mirrors.ha.edu.cn/fedora",
             .kali: "https://mirrors.ha.edu.cn/kali",
-            .nixos: "https://mirrors.ha.edu.cn/nix-channels/store",
             .openEuler: "https://mirrors.ha.edu.cn/openeuler",
             .openSUSE: "https://mirrors.ha.edu.cn/opensuse",
             .rocky: "https://mirrors.ha.edu.cn/rocky",
@@ -305,25 +274,20 @@ nonisolated struct DistributionMirror: Identifiable, Sendable {
         ]),
         DistributionMirror(id: "cn-sdu", name: "SDU", region: .cn, endpoints: [
             .lxc("https://mirrors.sdu.edu.cn/lxc-images", index: "meta/simplestreams/v1/images.json"),
-            .gentoo("https://mirrors.sdu.edu.cn/gentoo"),
         ], packages: [
             .alpine: "https://mirrors.sdu.edu.cn/alpine",
             .debian: .init("https://mirrors.sdu.edu.cn/debian", security: "https://mirrors.sdu.edu.cn/debian-security"),
-            .gentoo: "https://mirrors.sdu.edu.cn/gentoo",
             .kali: "https://mirrors.sdu.edu.cn/kali",
             .rocky: "https://mirrors.sdu.edu.cn/rocky",
             .ubuntu: "https://mirrors.sdu.edu.cn/ubuntu-ports",
         ]),
-        DistributionMirror(id: "cn-lzu", name: "LZU", region: .cn, endpoints: [
-            .gentoo("https://mirrors.lzu.edu.cn/gentoo"),
-        ], packages: [
+        DistributionMirror(id: "cn-lzu", name: "LZU", region: .cn, endpoints: [], packages: [
             .alma: "https://mirrors.lzu.edu.cn/almalinux",
             .alpine: "https://mirrors.lzu.edu.cn/alpine",
             .arch: "https://mirrors.lzu.edu.cn/archlinuxarm",
             .centos: "https://mirrors.lzu.edu.cn/centos-stream",
             .debian: .init("https://mirrors.lzu.edu.cn/debian", security: "https://mirrors.lzu.edu.cn/debian-security"),
             .fedora: "https://mirrors.lzu.edu.cn/fedora",
-            .gentoo: "https://mirrors.lzu.edu.cn/gentoo",
             .kali: "https://mirrors.lzu.edu.cn/kali",
             .openEuler: "https://mirrors.lzu.edu.cn/openeuler",
             .openSUSE: .init("https://mirrors.lzu.edu.cn/opensuse", tumbleweed: true),
@@ -350,72 +314,57 @@ nonisolated struct DistributionMirror: Identifiable, Sendable {
             .rocky: "https://mirrors.pku.edu.cn/rocky",
             .ubuntu: "https://mirrors.pku.edu.cn/ubuntu-ports",
         ]),
-        DistributionMirror(id: "cn-sustech", name: "SUSTech", region: .cn, endpoints: [
-            .gentoo("https://mirrors.sustech.edu.cn/gentoo"),
-        ], packages: [
+        DistributionMirror(id: "cn-sustech", name: "SUSTech", region: .cn, endpoints: [], packages: [
             .arch: "https://mirrors.sustech.edu.cn/archlinux-arm",
             .debian: .init(
                 "https://mirrors.sustech.edu.cn/debian",
                 security: "https://mirrors.sustech.edu.cn/debian-security"
             ),
             .fedora: "https://mirrors.sustech.edu.cn/fedora",
-            .gentoo: "https://mirrors.sustech.edu.cn/gentoo",
             .kali: "https://mirrors.sustech.edu.cn/kali",
             .openSUSE: .init("https://mirrors.sustech.edu.cn/opensuse", tumbleweed: true),
             .rocky: "https://mirrors.sustech.edu.cn/rocky-linux",
             .ubuntu: "https://mirrors.sustech.edu.cn/ubuntu-ports",
         ]),
-        DistributionMirror(id: "cn-hit", name: "HIT", region: .cn, endpoints: [
-            .gentoo("https://mirrors.hit.edu.cn/gentoo"),
-        ], packages: [
+        DistributionMirror(id: "cn-hit", name: "HIT", region: .cn, endpoints: [], packages: [
             .alma: "https://mirrors.hit.edu.cn/almalinux",
             .alpine: "https://mirrors.hit.edu.cn/alpine",
             .arch: "https://mirrors.hit.edu.cn/archlinuxarm",
             .centos: "https://mirrors.hit.edu.cn/centos-stream",
             .debian: "https://mirrors.hit.edu.cn/debian",
             .fedora: "https://mirrors.hit.edu.cn/fedora",
-            .gentoo: "https://mirrors.hit.edu.cn/gentoo",
             .kali: "https://mirrors.hit.edu.cn/kali",
             .openEuler: "https://mirrors.hit.edu.cn/openeuler",
             .openSUSE: "https://mirrors.hit.edu.cn/opensuse",
             .ubuntu: "https://mirrors.hit.edu.cn/ubuntu-ports",
         ]),
-        DistributionMirror(id: "cn-hust", name: "HUST", region: .cn, endpoints: [
-            .gentoo("https://mirrors.hust.edu.cn/gentoo"),
-        ], packages: [
+        DistributionMirror(id: "cn-hust", name: "HUST", region: .cn, endpoints: [], packages: [
             .alpine: "https://mirrors.hust.edu.cn/alpine",
             .debian: .init("https://mirrors.hust.edu.cn/debian", security: "https://mirrors.hust.edu.cn/debian-security"),
-            .gentoo: "https://mirrors.hust.edu.cn/gentoo",
             .kali: "https://mirrors.hust.edu.cn/kali",
             .openEuler: "https://mirrors.hust.edu.cn/openeuler",
             .rocky: "https://mirrors.hust.edu.cn/rocky",
             .ubuntu: "https://mirrors.hust.edu.cn/ubuntu-ports",
         ]),
-        DistributionMirror(id: "cn-aliyun", name: "Alibaba Cloud", region: .cn, endpoints: [
-            .gentoo("https://mirrors.aliyun.com/gentoo"),
-        ], packages: [
+        DistributionMirror(id: "cn-aliyun", name: "Alibaba Cloud", region: .cn, endpoints: [], packages: [
             .alma: "https://mirrors.aliyun.com/almalinux",
             .alpine: "https://mirrors.aliyun.com/alpine",
             .arch: "https://mirrors.aliyun.com/archlinuxarm",
             .centos: "https://mirrors.aliyun.com/centos-stream",
             .debian: .init("https://mirrors.aliyun.com/debian", security: "https://mirrors.aliyun.com/debian-security"),
             .fedora: "https://mirrors.aliyun.com/fedora",
-            .gentoo: "https://mirrors.aliyun.com/gentoo",
             .kali: "https://mirrors.aliyun.com/kali",
             .openEuler: "https://mirrors.aliyun.com/openeuler",
             .openSUSE: "https://mirrors.aliyun.com/opensuse",
             .rocky: "https://mirrors.aliyun.com/rockylinux",
             .ubuntu: "https://mirrors.aliyun.com/ubuntu-ports",
         ]),
-        DistributionMirror(id: "cn-tencent", name: "Tencent Cloud", region: .cn, endpoints: [
-            .gentoo("https://mirrors.tencent.com/gentoo"),
-        ], packages: [
+        DistributionMirror(id: "cn-tencent", name: "Tencent Cloud", region: .cn, endpoints: [], packages: [
             .alma: "https://mirrors.tencent.com/almalinux",
             .alpine: "https://mirrors.tencent.com/alpine",
             .centos: "https://mirrors.tencent.com/centos-stream",
             .debian: .init("https://mirrors.tencent.com/debian", security: "https://mirrors.tencent.com/debian-security"),
             .fedora: "https://mirrors.tencent.com/fedora",
-            .gentoo: "https://mirrors.tencent.com/gentoo",
             .openEuler: "https://mirrors.tencent.com/openeuler",
             .openSUSE: "https://mirrors.tencent.com/opensuse",
             .rocky: "https://mirrors.tencent.com/rocky",
@@ -452,7 +401,6 @@ nonisolated struct DistributionMirror: Identifiable, Sendable {
             .lxc("https://sgp1mirror01.do.images.linuxcontainers.org"),
         ]),
         DistributionMirror(id: "sg-freedif", name: "Freedif (SG)", region: .apac, endpoints: [
-            .gentoo("https://mirror.freedif.org/gentoo"),
             .void("https://mirror.freedif.org/voidlinux"),
         ], packages: [
             .alma: "https://mirror.freedif.org/almalinux",
@@ -460,50 +408,38 @@ nonisolated struct DistributionMirror: Identifiable, Sendable {
             .centos: "https://mirror.freedif.org/CentOS",
             .debian: "https://mirror.freedif.org/debian",
             .fedora: "https://mirror.freedif.org/fedora/fedora/linux",
-            .gentoo: "https://mirror.freedif.org/gentoo",
             .kali: "https://mirror.freedif.org/kali",
             .openSUSE: "https://mirror.freedif.org/opensuse",
             .rocky: "https://mirror.freedif.org/rocky",
             .void: "https://mirror.freedif.org/voidlinux",
         ]),
-        DistributionMirror(id: "jp-iij", name: "IIJ (JP)", region: .apac, endpoints: [
-            .gentoo("https://ftp.iij.ad.jp/pub/linux/gentoo"),
-        ], packages: [
+        DistributionMirror(id: "jp-iij", name: "IIJ (JP)", region: .apac, endpoints: [], packages: [
             .alma: "https://ftp.iij.ad.jp/pub/linux/almalinux",
             .centos: "https://ftp.iij.ad.jp/pub/linux/centos-stream",
             .debian: "https://ftp.iij.ad.jp/pub/linux/debian",
             .fedora: .init("https://ftp.iij.ad.jp/pub/linux/fedora/fedora/linux", releases: ["43"]),
-            .gentoo: "https://ftp.iij.ad.jp/pub/linux/gentoo",
             .rocky: "https://ftp.iij.ad.jp/pub/linux/rocky",
         ]),
         DistributionMirror(id: "kr-mirror", name: "Lanet / Heigou (KR)", region: .apac, endpoints: [
-            .gentoo("https://ftp.lanet.kr/pub/gentoo"),
             .void("https://mirror.heigou.pe.kr/voidlinux"),
         ], packages: [
-            .gentoo: "https://ftp.lanet.kr/pub/gentoo",
             .void: "https://mirror.heigou.pe.kr/voidlinux",
         ]),
-        DistributionMirror(id: "hk-cicku", name: "CICKU (HK)", region: .apac, endpoints: [
-            .gentoo("https://hk.mirrors.cicku.me/gentoo"),
-        ], packages: [
+        DistributionMirror(id: "hk-cicku", name: "CICKU (HK)", region: .apac, endpoints: [], packages: [
             .alma: "https://hk.mirrors.cicku.me/almalinux",
             .alpine: "https://hk.mirrors.cicku.me/alpine",
             .arch: "https://hk.mirrors.cicku.me/archlinuxarm",
             .fedora: "https://hk.mirrors.cicku.me/fedora/linux",
-            .gentoo: "https://hk.mirrors.cicku.me/gentoo",
             .kali: "https://hk.mirrors.cicku.me/kali",
             .openEuler: "https://hk.mirrors.cicku.me/openeuler",
             .rocky: "https://hk.mirrors.cicku.me/rocky",
             .void: "https://hk.mirrors.cicku.me/voidlinux",
         ]),
-        DistributionMirror(id: "tw-cicku", name: "CICKU (TW)", region: .apac, endpoints: [
-            .gentoo("https://tw.mirrors.cicku.me/gentoo"),
-        ], packages: [
+        DistributionMirror(id: "tw-cicku", name: "CICKU (TW)", region: .apac, endpoints: [], packages: [
             .alma: "https://tw.mirrors.cicku.me/almalinux",
             .alpine: "https://tw.mirrors.cicku.me/alpine",
             .arch: "https://tw.mirrors.cicku.me/archlinuxarm",
             .fedora: "https://tw.mirrors.cicku.me/fedora/linux",
-            .gentoo: "https://tw.mirrors.cicku.me/gentoo",
             .kali: "https://tw.mirrors.cicku.me/kali",
             .openEuler: "https://tw.mirrors.cicku.me/openeuler",
             .rocky: "https://tw.mirrors.cicku.me/rocky",
@@ -519,7 +455,6 @@ nonisolated struct DistributionMirror: Identifiable, Sendable {
             .debian: .init("https://mirror.aarnet.edu.au/pub/debian", security: "https://mirror.aarnet.edu.au/pub/debian-security"),
             .devuan: "https://mirror.aarnet.edu.au/pub/devuan/merged",
             .fedora: "https://mirror.aarnet.edu.au/pub/fedora/linux",
-            .gentoo: "https://mirror.aarnet.edu.au/pub/gentoo",
             .openSUSE: "https://mirror.aarnet.edu.au/pub/opensuse",
             .rocky: "https://mirror.aarnet.edu.au/pub/rocky",
             .void: "https://mirror.aarnet.edu.au/pub/voidlinux",
@@ -531,19 +466,16 @@ nonisolated struct DistributionMirror: Identifiable, Sendable {
             .lxc("https://sfo3mirror01.do.images.linuxcontainers.org"),
         ]),
         DistributionMirror(id: "us-osuosl", name: "OSUOSL / Summit (US)", region: .na, endpoints: [
-            .gentoo("https://gentoo.osuosl.org"),
             .void("https://mirrors.summithq.com/voidlinux"),
         ], packages: [
             .alma: "https://almalinux.osuosl.org",
             .centos: "https://centos-stream.osuosl.org",
             .debian: "https://debian.osuosl.org/debian",
             .fedora: "https://fedora.osuosl.org/linux",
-            .gentoo: "https://gentoo.osuosl.org",
             .void: "https://mirrors.summithq.com/voidlinux",
         ]),
         DistributionMirror(id: "ca-mirror", name: "Linux Containers / Waterloo (CA)", region: .na, endpoints: [
             .lxc("https://ca.images.linuxcontainers.org", index: "streams/v1/images.json"),
-            .gentoo("https://mirror.csclub.uwaterloo.ca/gentoo-distfiles"),
             .void("https://void.tuxmirrors.xyz"),
         ], packages: [
             .alma: "https://mirror.csclub.uwaterloo.ca/almalinux",
@@ -554,7 +486,6 @@ nonisolated struct DistributionMirror: Identifiable, Sendable {
                 security: "https://mirror.csclub.uwaterloo.ca/debian-security"
             ),
             .fedora: "https://mirror.csclub.uwaterloo.ca/fedora/linux",
-            .gentoo: "https://mirror.csclub.uwaterloo.ca/gentoo-distfiles",
             .openSUSE: "https://mirror.csclub.uwaterloo.ca/opensuse",
             .rocky: "https://mirror.csclub.uwaterloo.ca/rocky",
             .ubuntu: "https://mirror.csclub.uwaterloo.ca/ubuntu-ports",
@@ -562,37 +493,30 @@ nonisolated struct DistributionMirror: Identifiable, Sendable {
         ]),
         DistributionMirror(id: "de-fra", name: "Linux Containers / FAU (DE)", region: .eu, endpoints: [
             .lxc("https://fra1mirror01.do.images.linuxcontainers.org"),
-            .gentoo("https://ftp.fau.de/gentoo"),
             .void("https://repo-de.voidlinux.org"),
         ], packages: [
             .alma: "https://ftp.fau.de/almalinux",
             .debian: "https://ftp.fau.de/debian",
             .devuan: "https://ftp.fau.de/devuan/merged",
             .fedora: "https://ftp.fau.de/fedora/linux",
-            .gentoo: "https://ftp.fau.de/gentoo",
             .openSUSE: "https://ftp.fau.de/opensuse",
             .rocky: "https://ftp.fau.de/rockylinux",
             .ubuntu: "https://ftp.fau.de/ubuntu-ports",
             .void: "https://repo-de.voidlinux.org",
         ]),
-        DistributionMirror(id: "nl-utwente", name: "UTwente (NL)", region: .eu, endpoints: [
-            .gentoo("https://ftp.snt.utwente.nl/pub/os/linux/gentoo"),
-        ], packages: [
+        DistributionMirror(id: "nl-utwente", name: "UTwente (NL)", region: .eu, endpoints: [], packages: [
             .debian: .init(
                 "https://ftp.snt.utwente.nl/pub/os/linux/debian",
                 security: "https://ftp.snt.utwente.nl/pub/os/linux/debian-security"
             ),
-            .gentoo: "https://ftp.snt.utwente.nl/pub/os/linux/gentoo",
         ]),
         DistributionMirror(id: "se-lysator", name: "Lysator (SE)", region: .eu, endpoints: [
-            .gentoo("https://ftp.lysator.liu.se/gentoo"),
             .void("https://ftp.lysator.liu.se/pub/voidlinux"),
         ], packages: [
             .alma: "https://ftp.lysator.liu.se/pub/almalinux",
             .alpine: "https://ftp.lysator.liu.se/pub/alpine",
             .debian: .init("https://ftp.lysator.liu.se/pub/debian", security: "https://ftp.lysator.liu.se/pub/debian-security"),
             .fedora: "https://ftp.lysator.liu.se/pub/fedora/linux",
-            .gentoo: "https://ftp.lysator.liu.se/gentoo",
             .rocky: "https://ftp.lysator.liu.se/pub/rocky",
             .void: "https://ftp.lysator.liu.se/pub/voidlinux",
         ]),
@@ -601,14 +525,11 @@ nonisolated struct DistributionMirror: Identifiable, Sendable {
         ], packages: [
             .void: "https://repo-fi.voidlinux.org",
         ]),
-        DistributionMirror(id: "gb-mirror", name: "UK Mirror Service (GB)", region: .eu, endpoints: [
-            .gentoo("https://www.mirrorservice.org/sites/distfiles.gentoo.org"),
-        ], packages: [
+        DistributionMirror(id: "gb-mirror", name: "UK Mirror Service (GB)", region: .eu, endpoints: [], packages: [
             .alma: "https://www.mirrorservice.org/sites/repo.almalinux.org/almalinux",
             .centos: "https://www.mirrorservice.org/sites/mirror.stream.centos.org",
             .debian: "https://www.mirrorservice.org/sites/ftp.debian.org/debian",
             .fedora: "https://www.mirrorservice.org/sites/dl.fedoraproject.org/pub/fedora/linux",
-            .gentoo: "https://www.mirrorservice.org/sites/distfiles.gentoo.org",
             .rocky: "https://www.mirrorservice.org/sites/download.rockylinux.org/pub/rocky",
         ]),
     ]

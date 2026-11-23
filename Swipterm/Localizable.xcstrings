@@ -1,6 +1,34 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "%@ has no kernel package for this release.": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ هیچ بستهٔ هسته‌ای برای این نسخه ندارد."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "На зеркале «%@» нет пакета ядра для этого выпуска."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 没有适用于此版本的内核软件包。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 沒有適用於此版本的核心套件。"
+          }
+        }
+      }
+    },
     "About": {
       "localizations": {
         "fa": {
@@ -981,30 +1009,30 @@
         }
       }
     },
-    "Enter a valid HTTPS archive URL.": {
+    "Enter a valid archive URL.": {
       "localizations": {
         "fa": {
           "stringUnit": {
             "state": "translated",
-            "value": "یک URL معتبر HTTPS برای آرشیو وارد کنید."
+            "value": "یک URL معتبر برای آرشیو وارد کنید."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Введите действительный HTTPS URL архива."
+            "value": "Введите действительный URL архива."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "请输入有效的 HTTPS 归档 URL。"
+            "value": "请输入有效的归档 URL。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "請輸入有效的 HTTPS 歸檔 URL。"
+            "value": "請輸入有效的歸檔 URL。"
           }
         }
       }
@@ -2013,34 +2041,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "關閉"
-          }
-        }
-      }
-    },
-    "Only HTTPS image URLs are supported.": {
-      "localizations": {
-        "fa": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "فقط URLهای HTTPS تصویر پشتیبانی می‌شوند."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Поддерживаются только HTTPS URL образов."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "仅支持 HTTPS 镜像 URL。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "僅支援 HTTPS 映像檔 URL。"
           }
         }
       }
@@ -3105,6 +3105,34 @@
           "stringUnit": {
             "state": "translated",
             "value": "主題"
+          }
+        }
+      }
+    },
+    "This system has no kernel that can boot on this device. Use an archive that includes a 4K-page ARM64 kernel.": {
+      "localizations": {
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "این سیستم هیچ هسته‌ای ندارد که روی این دستگاه راه‌اندازی شود. از آرشیوی استفاده کنید که یک هستهٔ ARM64 با صفحه‌های 4K دارد."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "В этой системе нет ядра, которое может загрузиться на этом устройстве. Используйте архив с ядром ARM64 со страницами 4 КБ."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此系统中没有可在本设备上启动的内核。请使用包含 4K 页 ARM64 内核的归档。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此系統中沒有可在本裝置上啟動的核心。請使用包含 4K 頁 ARM64 核心的歸檔。"
           }
         }
       }

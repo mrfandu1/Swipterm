@@ -169,9 +169,9 @@ nonisolated extension LinuxDistribution {
             return hasNushell ? [.ash, .bash, .zsh, .fish, .nushell] : [.ash, .bash, .zsh, .fish]
         case .alma, .centos, .oracle, .rocky:
             return [.bash, .zsh]
-        case .debian, .devuan, .gentoo, .kali, .openEuler, .ubuntu:
+        case .debian, .devuan, .kali, .openEuler, .ubuntu:
             return [.bash, .zsh, .fish]
-        case .arch, .fedora, .nixos, .openSUSE, .void:
+        case .arch, .fedora, .openSUSE, .void:
             return [.bash, .zsh, .fish, .nushell]
         }
     }
