@@ -84,11 +84,12 @@ nonisolated enum LinuxDistribution: String, CaseIterable, Identifiable, Codable,
         return allCases.first { $0.simplestreamsOSKey == normalized }
     }
 
-    var repository: MirrorRepository {
+    fileprivate var imageServerURL: URL {
         switch self {
         case .alma, .alpine, .arch, .centos, .debian, .devuan, .fedora, .kali, .openEuler, .openSUSE, .oracle, .rocky, .ubuntu:
-            .lxc
-        case .void: .void
+            LinuxDistributionCatalogClient.simplestreamsServerURL
+        case .void:
+            LinuxDistributionCatalogClient.voidServerURL
         }
     }
 
@@ -135,14 +136,15 @@ nonisolated struct LinuxReleaseImage: Identifiable, Hashable, Codable, Sendable 
     let displayTitle: String
     let buildSerial: String
     let artifactPath: String
-    let compressedBytes: Int64?
     let sortRank: Int
     let isRecommended: Bool
+
+    var archiveURL: URL {
+        distribution.imageServerURL.appending(path: artifactPath, directoryHint: .notDirectory)
+    }
 }
 
 nonisolated struct ContainerSetup: Codable, Equatable, Sendable {
-    var mirrorID: String?
-    var packageMirrorID: String?
     var password: String?
     var software: ContainerSoftware?
 }
@@ -198,7 +200,7 @@ final class LinuxDistributionCatalogStore {
         return releases.first(where: \.isRecommended) ?? releases.first
     }
 
-    func loadIfNeeded(mirror: DistributionMirror?) async {
+    func loadIfNeeded() async {
         if case .loaded = loadState, !releasesByDistribution.isEmpty {
             return
         }
@@ -206,15 +208,15 @@ final class LinuxDistributionCatalogStore {
             await activeTask.value
             return
         }
-        await refresh(mirror: mirror)
+        await refresh()
     }
 
-    func refresh(mirror: DistributionMirror?) async {
+    func refresh() async {
         activeTask?.cancel()
         loadState = .loading
         let task = Task<Void, Never> {
             do {
-                let releases = try await LinuxDistributionCatalogClient.fetchARM64Catalog(mirror: mirror)
+                let releases = try await LinuxDistributionCatalogClient.fetchARM64Catalog()
                 guard !Task.isCancelled else { return }
                 releasesByDistribution = releases
                 loadState = .loaded
@@ -231,7 +233,8 @@ final class LinuxDistributionCatalogStore {
 }
 
 private nonisolated enum LinuxDistributionCatalogClient {
-    private static let voidChecksumsPath = "live/current/sha256sum.txt"
+    static let simplestreamsServerURL = URL(string: "https://images.linuxcontainers.org")!
+    static let voidServerURL = URL(string: "https://repo-fastly.voidlinux.org")!
 
     private struct SimplestreamsDocument: Decodable {
         let products: [String: SimplestreamsProduct]
@@ -261,25 +264,21 @@ private nonisolated enum LinuxDistributionCatalogClient {
 
     private struct SimplestreamsItem: Decodable {
         let path: String?
-        let size: Int64?
     }
 
-    static func fetchARM64Catalog(mirror: DistributionMirror?) async throws -> [LinuxDistribution: [LinuxReleaseImage]] {
-        async let simplestreams = Result { try await fetchSimplestreams(mirror: mirror) }
-        async let void = Result { try await fetchVoid(mirror: mirror) }
+    static func fetchARM64Catalog() async throws -> [LinuxDistribution: [LinuxReleaseImage]] {
+        async let simplestreams = Result { try await fetchSimplestreams() }
+        async let void = Result { try await fetchVoid() }
 
         var grouped: [LinuxDistribution: [LinuxReleaseImage]] = [:]
         var firstError: Error?
-        for (repository, result) in await [(MirrorRepository.lxc, simplestreams), (.void, void)] {
+        for result in await [simplestreams, void] {
             switch result {
             case let .success(images):
                 for image in images {
                     grouped[image.distribution, default: []].append(image)
                 }
             case let .failure(error):
-                if let mirror, mirror.hosts(repository) {
-                    throw error
-                }
                 firstError = firstError ?? error
             }
         }
@@ -298,27 +297,17 @@ private nonisolated enum LinuxDistributionCatalogClient {
         return grouped
     }
 
-    private static func fetch(_ url: URL) async throws -> Data {
-        let (data, response) = try await HTTPClient.data(for: HTTPRequest(url: url))
-        guard (200 ..< 300).contains(response.statusCode) else {
-            throw HTTPError.unexpectedStatus(response.statusCode)
-        }
+    private static func fetch(_ path: String, from server: URL) async throws -> Data {
+        let (data, response) = try await HTTPClient.data(from: server.appending(path: path, directoryHint: .notDirectory))
+        try response.requireSuccess()
         return data
     }
 
-    private static func fetchText(_ url: URL) async throws -> String {
-        guard let text = try String(data: await fetch(url), encoding: .utf8) else {
-            throw URLError(.cannotDecodeContentData)
-        }
-        return text
-    }
-
-    private static func fetchSimplestreams(mirror: DistributionMirror?) async throws -> [LinuxReleaseImage] {
-        let document = try await DistributionMirrorRouter.firstSuccess(for: .lxc, preferring: mirror) { endpoint in
-            endpoint.lxcIndexPath.map(endpoint.url(for:))
-        } _: { candidate in
-            try JSONDecoder().decode(SimplestreamsDocument.self, from: await fetch(candidate.url))
-        }
+    private static func fetchSimplestreams() async throws -> [LinuxReleaseImage] {
+        let document = try await JSONDecoder().decode(
+            SimplestreamsDocument.self,
+            from: fetch("streams/v1/images.json", from: simplestreamsServerURL)
+        )
         var images: [LinuxReleaseImage] = []
         for (productKey, product) in document.products {
             guard product.arch == "arm64",
@@ -343,7 +332,6 @@ private nonisolated enum LinuxDistributionCatalogClient {
                 displayTitle: label.title,
                 buildSerial: latestSerial,
                 artifactPath: artifactPath,
-                compressedBytes: tarItem.size,
                 sortRank: label.rank,
                 isRecommended: distribution == .ubuntu && release.lowercased() == "noble"
             ))
@@ -351,11 +339,9 @@ private nonisolated enum LinuxDistributionCatalogClient {
         return images
     }
 
-    private static func fetchVoid(mirror: DistributionMirror?) async throws -> [LinuxReleaseImage] {
-        let checksums = try await DistributionMirrorRouter.firstSuccess(for: .void, preferring: mirror) { endpoint in
-            endpoint.url(for: voidChecksumsPath)
-        } _: { candidate in
-            try await fetchText(candidate.url)
+    private static func fetchVoid() async throws -> [LinuxReleaseImage] {
+        guard let checksums = try await String(data: fetch("live/current/sha256sum.txt", from: voidServerURL), encoding: .utf8) else {
+            throw URLError(.cannotDecodeContentData)
         }
         let prefix = "void-aarch64-ROOTFS-"
         for line in checksums.split(whereSeparator: \.isNewline) {
@@ -371,7 +357,6 @@ private nonisolated enum LinuxDistributionCatalogClient {
                 displayTitle: "Rolling",
                 buildSerial: serial,
                 artifactPath: "live/\(serial)/\(file)",
-                compressedBytes: nil,
                 sortRank: 1000,
                 isRecommended: true
             )]

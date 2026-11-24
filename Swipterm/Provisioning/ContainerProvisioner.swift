@@ -6,8 +6,6 @@ nonisolated enum ContainerProvisioner {
         let hostname: String
         let user: String
         let password: String?
-        let mirrorID: String?
-        let packageMirrorID: String?
         let software: ContainerSoftware
     }
 
@@ -24,8 +22,7 @@ nonisolated enum ContainerProvisioner {
         on runtime: LinuxRuntime,
         terminal: LinuxTerminal,
         request: Request,
-        release: OSRelease?,
-        log: @escaping @Sendable (String) async -> Void
+        release: OSRelease?
     ) async throws -> LinuxProcess {
         let distribution = release?.distribution
         let software = request.software
@@ -58,50 +55,6 @@ nonisolated enum ContainerProvisioner {
                 environment["SWIPTERM_SSH_AUTHORIZED_KEYS"] = ssh.authorizedKeys
             }
         }
-        let registries = software.registries
-        if !registries.isEmpty || distribution != nil {
-            await log(step("Mirrors"))
-        }
-        if !registries.isEmpty {
-            let usesChinaMirrors = if let mirror = DistributionMirror.all.first(where: { $0.id == request.mirrorID }) {
-                mirror.region == .cn
-            } else {
-                await DistributionMirrorRouter.regionDetector.region() == .cn
-            }
-            for registry in registries {
-                let mirror = RegistryMirror.resolve(registry, id: software.registryMirrors[registry], usesChinaMirrors: usesChinaMirrors)
-                await log("    \(registry.displayName): \(mirror.name) (\(mirror.url))\r\n")
-                guard mirror.region != .global else { continue }
-                switch registry {
-                case .npm:
-                    environment["SWIPTERM_NPM_REGISTRY"] = mirror.url
-                    environment["SWIPTERM_NODE_DIST"] = mirror.distributionURL
-                case .go:
-                    environment["SWIPTERM_GOPROXY"] = mirror.url
-                    environment["SWIPTERM_GO_DIST"] = mirror.distributionURL
-                case .pypi:
-                    environment["SWIPTERM_PYPI_INDEX"] = mirror.url
-                case .crates:
-                    environment["SWIPTERM_CARGO_INDEX"] = mirror.url
-                    environment["SWIPTERM_RUSTUP_SERVER"] = mirror.distributionURL
-                }
-            }
-        }
-
-        if let distribution, let release {
-            let mirror = try await PackageMirrorResolver.resolve(
-                for: distribution,
-                release: release,
-                mirrorID: request.packageMirrorID ?? request.mirrorID
-            )
-            if let mirror {
-                await log("    \(distribution.displayName): \(mirror.name) (\(mirror.root.url))\r\n")
-            }
-            let configurator = PackageRepositoryConfigurator(fileSystem: runtime.fileSystem, distribution: distribution, release: release)
-            for path in try await configurator.apply(mirror) {
-                await log("    \(path)\r\n")
-            }
-        }
 
         return try await runtime.spawn(LinuxProcess.Configuration(
             executablePath: "/bin/sh",
@@ -112,10 +65,6 @@ nonisolated enum ContainerProvisioner {
             standardOutput: .terminal(terminal),
             standardError: .terminal(terminal)
         ))
-    }
-
-    private static func step(_ message: String) -> String {
-        "\u{1B}[1m==> \(message)\u{1B}[0m\r\n"
     }
 
     private static let setupScript = #"""
@@ -487,10 +436,9 @@ nonisolated enum ContainerProvisioner {
             return 0
         fi
         step "Go"
-        base=${SWIPTERM_GO_DIST:-https://go.dev/dl}
-        fetch "$base/?mode=json" > "$work/go.json"
+        fetch "https://go.dev/dl/?mode=json" > "$work/go.json"
         archive=$(sed -n 's/.*"filename"[[:space:]]*:[[:space:]]*"\(go[^"]*\.linux-arm64\.tar\.gz\)".*/\1/p' "$work/go.json" | head -n 1)
-        download "$base/$archive" "$work/$archive"
+        download "https://go.dev/dl/$archive" "$work/$archive"
         rm -rf /usr/local/go
         tar -xzf "$work/$archive" -C /usr/local
     }
@@ -500,7 +448,7 @@ nonisolated enum ContainerProvisioner {
             return 0
         fi
         step "Node.js"
-        base=${SWIPTERM_NODE_DIST:-https://nodejs.org/dist}/latest-v24.x
+        base=https://nodejs.org/dist/latest-v24.x
         fetch "$base/SHASUMS256.txt" > "$work/SHASUMS256.txt"
         archive=$(grep -o 'node-v[0-9.]*-linux-arm64\.tar\.gz$' "$work/SHASUMS256.txt" | head -n 1)
         download "$base/$archive" "$work/$archive"
@@ -718,10 +666,6 @@ nonisolated enum ContainerProvisioner {
         "/usr/local/go/bin"
     ] | uniq)
     EOF
-                if [ -n "${SWIPTERM_RUSTUP_SERVER:-}" ]; then
-                    printf '$env.RUSTUP_DIST_SERVER = "%s"\n$env.RUSTUP_UPDATE_ROOT = "%s/rustup"\n' \
-                        "$SWIPTERM_RUSTUP_SERVER" "$SWIPTERM_RUSTUP_SERVER" >> "$nu_config"
-                fi
             fi
             if ! grep -qF /run/host-bin "$nu_config"; then
                 printf '%s\n' '$env.PATH = ($env.PATH | split row (char esep) | append "/run/host-bin" | uniq)' >> "$nu_config"
@@ -862,12 +806,6 @@ nonisolated enum ContainerProvisioner {
         or set -gx PATH $swipterm_path $PATH
     end
     EOF
-        if [ -n "${SWIPTERM_RUSTUP_SERVER:-}" ]; then
-            printf 'RUSTUP_DIST_SERVER=%s\nRUSTUP_UPDATE_ROOT=%s/rustup\nexport RUSTUP_DIST_SERVER RUSTUP_UPDATE_ROOT\n' \
-                "$SWIPTERM_RUSTUP_SERVER" "$SWIPTERM_RUSTUP_SERVER" >> /etc/profile.d/swipterm.sh
-            printf 'set -gx RUSTUP_DIST_SERVER %s\nset -gx RUSTUP_UPDATE_ROOT %s/rustup\n' \
-                "$SWIPTERM_RUSTUP_SERVER" "$SWIPTERM_RUSTUP_SERVER" >> /etc/fish/conf.d/swipterm.fish
-        fi
     }
 
     write_user_config() {
@@ -875,36 +813,16 @@ nonisolated enum ContainerProvisioner {
         as_user "mkdir -p \"\$HOME/$(dirname "$1")\" && cat > \"\$HOME/$1\""
     }
 
-    configure_mirrors() {
-        if [ -z "${SWIPTERM_NPM_REGISTRY:-}${SWIPTERM_GOPROXY:-}${SWIPTERM_PYPI_INDEX:-}${SWIPTERM_CARGO_INDEX:-}" ]; then
-            return 0
-        fi
-        if [ -n "${SWIPTERM_NPM_REGISTRY:-}" ]; then
-            printf 'registry=%s/\n' "$SWIPTERM_NPM_REGISTRY" | write_user_config .npmrc
-        fi
-        if [ -n "${SWIPTERM_GOPROXY:-}" ]; then
-            printf 'GOPROXY=%s,direct\n' "$SWIPTERM_GOPROXY" | write_user_config .config/go/env
-        fi
-        if [ -n "${SWIPTERM_PYPI_INDEX:-}" ]; then
-            printf '[global]\nindex-url = %s\n' "$SWIPTERM_PYPI_INDEX" | write_user_config .config/pip/pip.conf
-        fi
-        if [ -n "${SWIPTERM_CARGO_INDEX:-}" ]; then
-            printf '[source.crates-io]\nreplace-with = "mirror"\n\n[source.mirror]\nregistry = "sparse+%s/"\n' \
-                "$SWIPTERM_CARGO_INDEX" | write_user_config .cargo/config.toml
-        fi
-    }
-
     install_rust() {
         if ! want_tool rust; then
             return 0
         fi
         step "Rust"
-        rustup_server=${SWIPTERM_RUSTUP_SERVER:-https://static.rust-lang.org}
         target=aarch64-unknown-linux-gnu
         if [ "$SWIPTERM_DISTRIBUTION" = alpine ]; then
             target=aarch64-unknown-linux-musl
         fi
-        download "$rustup_server/rustup/dist/$target/rustup-init" "$work/rustup-init"
+        download "https://static.rust-lang.org/rustup/dist/$target/rustup-init" "$work/rustup-init"
         rustup_dir=$(mktemp -d /tmp/swipterm-rustup.XXXXXX)
         chown "$user:$user_group" "$rustup_dir"
         install -m 0755 "$work/rustup-init" "$rustup_dir/rustup-init"
@@ -960,11 +878,11 @@ nonisolated enum ContainerProvisioner {
         if want_agent claude-code; then
             step "Claude Code"
             if want_tool pnpm; then
-                as_user "pnpm add --global --registry=$npm_registry --allow-build=@anthropic-ai/claude-code @anthropic-ai/claude-code"
+                as_user "pnpm add --global --allow-build=@anthropic-ai/claude-code @anthropic-ai/claude-code"
             elif want_tool bun; then
-                as_user "bun add --global --trust --registry=$npm_registry @anthropic-ai/claude-code"
+                as_user "bun add --global --trust @anthropic-ai/claude-code"
             else
-                as_user "npm install --global --prefix \"\$HOME/.local\" --registry=$npm_registry @anthropic-ai/claude-code"
+                as_user "npm install --global --prefix \"\$HOME/.local\" @anthropic-ai/claude-code"
             fi
         fi
         install_codex
@@ -987,9 +905,12 @@ nonisolated enum ContainerProvisioner {
     if [ "$SWIPTERM_DISTRIBUTION" = alpine ]; then
         musl=-musl
     fi
-    npm_registry=${SWIPTERM_NPM_REGISTRY:-https://registry.npmjs.org}
+    npm_registry=https://registry.npmjs.org
     packages_synced=
 
+    if [ "$SWIPTERM_DISTRIBUTION" = oracle ] && [ -f /etc/pki/rpm-gpg/RPM-GPG-KEY-oracle ]; then
+        sed -i 's|file:///RPM-GPG-KEY-oracle|file:///etc/pki/rpm-gpg/RPM-GPG-KEY-oracle|' /etc/yum.repos.d/*.repo
+    fi
     reconcile_kernel
     case "$SWIPTERM_DISTRIBUTION" in
     arch) prepare_arch ;;
@@ -1021,7 +942,6 @@ nonisolated enum ContainerProvisioner {
     configure_login_shell
     configure_ssh
     configure_path
-    configure_mirrors
     install_rust
     install_agents
 

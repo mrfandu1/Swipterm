@@ -173,19 +173,6 @@ struct SetupSoftwareView: View {
                     }
                 }
             }
-
-            let registries = software.registries
-            if !registries.isEmpty {
-                Section("Mirrors") {
-                    ForEach(registries, id: \.self) { registry in
-                        RegistryMirrorPicker(registry: registry, mirrorID: Binding {
-                            software.registryMirrors[registry] ?? ""
-                        } set: { mirrorID in
-                            software.registryMirrors[registry] = mirrorID.isEmpty ? nil : mirrorID
-                        })
-                    }
-                }
-            }
         }
         .modifier(FormColumnModifier())
         .navigationTitle("Software")
@@ -213,33 +200,5 @@ private struct SetupSelectionRow: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
-    }
-}
-
-private struct RegistryMirrorPicker: View {
-    let registry: PackageRegistry
-    @Binding var mirrorID: String
-
-    var body: some View {
-        let mirrors = RegistryMirror.mirrors(for: registry)
-        Picker(selection: $mirrorID) {
-            Text("Automatic")
-                .tag("")
-            ForEach(MirrorRegion.allCases, id: \.self) { region in
-                let regionMirrors = mirrors.filter { $0.region == region }
-                if !regionMirrors.isEmpty {
-                    Section {
-                        ForEach(regionMirrors) { mirror in
-                            Text(verbatim: mirror.name)
-                                .tag(mirror.id)
-                        }
-                    } header: {
-                        Text(region.displayName)
-                    }
-                }
-            }
-        } label: {
-            Text(verbatim: registry.displayName)
-        }
     }
 }

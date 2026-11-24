@@ -14,7 +14,6 @@ struct SetupDraft {
     var lastAutoContainerName = LinuxDistribution.alpine.defaultContainerName
     var selectedReleaseID: String?
     var initMode = ContainerInitMode.managed
-    var mirrorID = ""
     var customFileURL: URL?
     var customRemoteURLText = ""
     var usesRootUser = false
@@ -52,9 +51,9 @@ struct SetupView: View {
                         .multilineTextAlignment(.trailing)
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
-                        #if SWIPTERM_STORE_SCREENSHOTS && targetEnvironment(simulator)
-                            .accessibilityIdentifier("store-screenshot-setup")
-                        #endif
+                    #if SWIPTERM_STORE_SCREENSHOTS && targetEnvironment(simulator)
+                        .accessibilityIdentifier("store-screenshot-setup")
+                    #endif
                 }
 
                 Picker("Distribution", selection: clearingFocus($draft.source)) {
@@ -77,7 +76,7 @@ struct SetupView: View {
                         loadState: catalog.loadState,
                         releases: catalog.releases(for: distribution),
                         onRetryCatalog: {
-                            Task { await catalog.refresh(mirror: selectedMirror) }
+                            Task { await catalog.refresh() }
                         }
                     )
                 case .localArchive:
@@ -103,10 +102,6 @@ struct SetupView: View {
             }
 
             Section("Configuration") {
-                let mirrors = availableMirrors
-                if mirrors.count > 1 {
-                    SetupMirrorPicker(mirrors: mirrors, mirrorID: clearingFocus($draft.mirrorID))
-                }
                 if showsStartupModePicker {
                     StartupModePicker(selection: clearingFocus($draft.initMode))
                 }
@@ -193,14 +188,14 @@ struct SetupView: View {
             }
         }, presenting: catalogFailure) { _ in
             Button("Retry") {
-                Task { await catalog.refresh(mirror: selectedMirror) }
+                Task { await catalog.refresh() }
             }
             Button("OK", role: .cancel) {}
         } message: { failure in
             Text(failure)
         }
         .task {
-            await catalog.loadIfNeeded(mirror: selectedMirror)
+            await catalog.loadIfNeeded()
             syncSelectedRelease()
         }
         .onChange(of: draft.source) { _, newSource in
@@ -236,9 +231,6 @@ struct SetupView: View {
                 draft.software.shell = .bash
             }
         }
-        .onChange(of: draft.mirrorID) {
-            Task { await catalog.refresh(mirror: selectedMirror) }
-        }
     }
 
     private var selectedDistribution: LinuxDistribution? {
@@ -256,15 +248,6 @@ struct SetupView: View {
             return matched
         }
         return catalog.defaultRelease(for: distribution)
-    }
-
-    private var selectedMirror: DistributionMirror? {
-        availableMirrors.first { $0.id == draft.mirrorID }
-    }
-
-    private var availableMirrors: [DistributionMirror] {
-        guard let distribution = selectedDistribution else { return [] }
-        return DistributionMirror.all.filter { $0.serves(distribution) }
     }
 
     private var selectedSystemInit: SystemInit? {
@@ -346,7 +329,7 @@ struct SetupView: View {
         switch draft.source {
         case .distribution:
             guard let release = selectedRelease else { return }
-            installSource = .catalog(release, mirror: selectedMirror)
+            installSource = .catalog(release)
         case .localArchive:
             guard let fileURL = draft.customFileURL else { return }
             installSource = .localArchive(fileURL)
@@ -465,35 +448,6 @@ private struct SetupReleasePicker: View {
                         .foregroundStyle(.secondary)
                 case .failed:
                     Button("Retry", action: onRetryCatalog)
-                }
-            }
-        }
-    }
-}
-
-private struct SetupMirrorPicker: View {
-    let mirrors: [DistributionMirror]
-    @Binding var mirrorID: String
-
-    var body: some View {
-        Picker("Mirror", selection: Binding {
-            mirrors.contains { $0.id == mirrorID } ? mirrorID : ""
-        } set: { newValue in
-            mirrorID = newValue
-        }) {
-            Text("Automatic")
-                .tag("")
-            ForEach(MirrorRegion.allCases, id: \.self) { region in
-                let regionMirrors = mirrors.filter { $0.region == region }
-                if !regionMirrors.isEmpty {
-                    Section {
-                        ForEach(regionMirrors) { mirror in
-                            Text(verbatim: mirror.name)
-                                .tag(mirror.id)
-                        }
-                    } header: {
-                        Text(region.displayName)
-                    }
                 }
             }
         }

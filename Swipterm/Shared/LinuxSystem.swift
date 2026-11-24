@@ -29,7 +29,7 @@ final class LinuxSystem {
 
     struct InstallRequest: Sendable {
         enum Source: Sendable {
-            case catalog(LinuxReleaseImage, mirror: DistributionMirror?)
+            case catalog(LinuxReleaseImage)
             case localArchive(URL)
             case remoteArchive(URL)
         }
@@ -181,7 +181,7 @@ final class LinuxSystem {
             }
             guard self.generation == generation else { return }
 
-            var metadata = Self.makeMetadata(for: request)
+            let metadata = Self.makeMetadata(for: request)
             let stagingRootURL = Self.rootDirectoryURL.deletingLastPathComponent()
                 .appending(path: Self.stagingRootPrefix + UUID().uuidString, directoryHint: .isDirectory)
             var placedRoot = false
@@ -200,20 +200,12 @@ final class LinuxSystem {
             do {
                 let archiveURL: URL
                 switch request.source {
-                case let .catalog(release, mirror):
-                    let urls = await DistributionMirrorRouter.endpoints(
-                        for: release.distribution.repository,
-                        preferring: mirror
-                    ).map { $0.url(for: release.artifactPath) }
-                    archiveURL = try await downloadArchive(
-                        from: urls,
-                        expectedBytes: release.compressedBytes,
-                        generation: generation
-                    )
+                case let .catalog(release):
+                    archiveURL = try await downloadArchive(from: release.archiveURL, generation: generation)
                     temporaryArchiveURL = archiveURL
 
                 case let .remoteArchive(url):
-                    archiveURL = try await downloadArchive(from: [url], generation: generation)
+                    archiveURL = try await downloadArchive(from: url, generation: generation)
                     temporaryArchiveURL = archiveURL
 
                 case let .localArchive(url):
@@ -233,20 +225,14 @@ final class LinuxSystem {
                 guard self.generation == generation else { return }
                 try? FileManager.default.removeItem(at: archiveURL)
                 temporaryArchiveURL = nil
-                if case let .catalog(release, _) = request.source {
-                    let packageMirrorID = try await installKernel(
-                        release.distribution,
-                        mirrorID: metadata.setup?.mirrorID,
-                        into: builder,
-                        generation: generation
-                    )
-                    metadata.setup?.packageMirrorID = packageMirrorID
+                if case let .catalog(release) = request.source {
+                    try await installKernel(release.distribution, into: builder, generation: generation)
                     guard self.generation == generation else { return }
                 }
                 try await builder.finish()
                 guard self.generation == generation else { return }
 
-                try await Task.detached { [metadata] in
+                try await Task.detached {
                     try Self.saveContainerMetadata(metadata, root: stagingRootURL)
                 }.value
                 guard self.generation == generation else { return }
@@ -441,52 +427,47 @@ final class LinuxSystem {
         appendConsole(Data("\u{1B}[1m==> \(title)\u{1B}[0m\r\n".utf8), generation: generation)
     }
 
-    private func downloadArchive(
-        from urls: [URL],
-        expectedBytes: Int64? = nil,
-        generation: UInt64
-    ) async throws -> URL {
+    private func downloadArchive(from url: URL, generation: UInt64) async throws -> URL {
         let epoch = consoleProgressEpoch
         let start = ContinuousClock.now
-        return try await RootImageDownloader.download(
-            from: urls,
-            expectedBytes: expectedBytes,
-            onProgress: { progress in
-                DispatchQueue.main.async {
-                    MainActor.assumeIsolated {
-                        LinuxSystem.shared.appendConsoleDownloadProgress(progress, start: start, generation: generation, epoch: epoch)
-                    }
+        let name = url.host() ?? url.absoluteString
+        return try await RootImageDownloader.download(from: url) { bytesWritten, totalBytes in
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    LinuxSystem.shared.appendConsoleDownloadProgress(
+                        bytesWritten: bytesWritten,
+                        totalBytes: totalBytes,
+                        name: name,
+                        start: start,
+                        generation: generation,
+                        epoch: epoch
+                    )
                 }
             }
-        )
+        }
     }
 
     private func installKernel(
         _ distribution: LinuxDistribution,
-        mirrorID: String?,
         into builder: LinuxRootImageBuilder,
         generation: UInt64
-    ) async throws -> String {
+    ) async throws {
         guard let release = try Self.osRelease(in: builder) else {
             throw KernelBootstrapError.unknownRelease
         }
         appendConsoleStep("Kernel", generation: generation)
-        let official = DistributionMirror.official
-        let mirror = try await PackageMirrorResolver.resolve(for: distribution, release: release, mirrorID: mirrorID)
-            ?? PackageMirror(id: official.id, name: official.name, root: official.packages[distribution]!)
-        appendConsole(Data("    \(distribution.displayName): \(mirror.name) (\(mirror.root.url))\r\n".utf8), generation: generation)
         let directory = Self.downloadStagingDirectoryURL.appending(path: UUID().uuidString, directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer {
             try? FileManager.default.removeItem(at: directory)
         }
-        let bootstrap = KernelBootstrap(distribution: distribution, release: release, mirror: mirror)
-        let packages = try await bootstrap.packages { url, expectedBytes in
-            try await self.download(url, expectedBytes: expectedBytes, into: directory, generation: generation)
+        let bootstrap = KernelBootstrap(distribution: distribution, release: release)
+        let packages = try await bootstrap.packages { url in
+            try await self.download(url, into: directory, generation: generation)
         }
         var files: [URL] = []
         for package in packages {
-            try await files.append(download(package.url, expectedBytes: package.size, into: directory, generation: generation))
+            try await files.append(download(package.url, into: directory, generation: generation))
         }
         var installed: [KernelBootstrap.Installed] = []
         for (package, file) in zip(packages, files) {
@@ -496,12 +477,10 @@ final class LinuxSystem {
             installed.append(KernelBootstrap.Installed(package: package, file: file, contents: contents))
         }
         try await bootstrap.register(installed, in: builder)
-        return mirror.id
     }
 
     private func download(
         _ url: URL,
-        expectedBytes: Int64?,
         into directory: URL,
         generation: UInt64
     ) async throws -> URL {
@@ -512,18 +491,20 @@ final class LinuxSystem {
         defer {
             endConsoleProgressLine(generation: generation)
         }
-        try await HTTPClient.download(
-            from: [url],
-            to: destination,
-            expectedBytes: expectedBytes,
-            progress: { progress in
-                DispatchQueue.main.async {
-                    MainActor.assumeIsolated {
-                        LinuxSystem.shared.appendConsoleDownloadProgress(progress, name: name, start: start, generation: generation, epoch: epoch)
-                    }
+        try await HTTPClient.download(from: url, to: destination) { bytesWritten, totalBytes in
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    LinuxSystem.shared.appendConsoleDownloadProgress(
+                        bytesWritten: bytesWritten,
+                        totalBytes: totalBytes,
+                        name: name,
+                        start: start,
+                        generation: generation,
+                        epoch: epoch
+                    )
                 }
             }
-        )
+        }.requireSuccess()
         return destination
     }
 
@@ -547,8 +528,9 @@ final class LinuxSystem {
     }
 
     private func appendConsoleDownloadProgress(
-        _ progress: HTTPDownloadProgress,
-        name: String? = nil,
+        bytesWritten: Int64,
+        totalBytes: Int64?,
+        name: String,
         start: ContinuousClock.Instant,
         generation: UInt64,
         epoch: UInt64
@@ -557,7 +539,7 @@ final class LinuxSystem {
         if case let .download(current)? = openConsoleProgress?.meter {
             meter = current
         }
-        meter.update(progress)
+        meter.update(bytesWritten: bytesWritten, totalBytes: totalBytes)
         updateConsoleProgress(.download(meter), generation: generation, epoch: epoch)
     }
 
@@ -858,8 +840,6 @@ final class LinuxSystem {
                 hostname: metadata.name,
                 user: metadata.defaultUser,
                 password: metadata.setup?.password,
-                mirrorID: metadata.setup?.mirrorID,
-                packageMirrorID: metadata.setup?.packageMirrorID,
                 software: metadata.setup?.software ?? ContainerSoftware()
             )
             let termination: LinuxProcess.Termination
@@ -869,9 +849,7 @@ final class LinuxSystem {
                     terminal: terminal,
                     request: request,
                     release: release
-                ) { text in
-                    await LinuxSystem.shared.appendConsole(Data(text.utf8), generation: generation)
-                }
+                )
                 termination = await process.termination
             } catch {
                 terminal.close()
@@ -1079,10 +1057,8 @@ final class LinuxSystem {
 
     private nonisolated static func makeMetadata(for request: InstallRequest) -> ContainerMetadata {
         var release: LinuxReleaseImage?
-        var mirrorID: String?
-        if case let .catalog(catalogRelease, mirror) = request.source {
+        if case let .catalog(catalogRelease) = request.source {
             release = catalogRelease
-            mirrorID = mirror?.id
         }
         return ContainerMetadata(
             name: request.containerName,
@@ -1092,7 +1068,7 @@ final class LinuxSystem {
             initMode: request.initMode,
             defaultUser: request.user,
             setupCompleted: false,
-            setup: ContainerSetup(mirrorID: mirrorID, password: request.password, software: request.software),
+            setup: ContainerSetup(password: request.password, software: request.software),
             sshPort: request.software.ssh?.port
         )
     }

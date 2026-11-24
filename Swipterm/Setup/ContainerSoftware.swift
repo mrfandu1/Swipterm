@@ -103,22 +103,9 @@ nonisolated struct ContainerSoftware: Codable, Equatable, Sendable {
     var ssh: SSHServer?
     var developerTools: Set<DeveloperTool> = []
     var agents: Set<CodingAgent> = []
-    var registryMirrors: [PackageRegistry: String] = [:]
 
     var installedDeveloperTools: Set<DeveloperTool> {
         agents.contains(where: \.isJavaScriptPackage) ? developerTools.union([.node]) : developerTools
-    }
-
-    var registries: [PackageRegistry] {
-        let tools = installedDeveloperTools
-        return PackageRegistry.allCases.filter { registry in
-            switch registry {
-            case .npm: tools.contains(.node) || tools.contains(where: \.isJavaScriptPackageManager) || agents.contains(.codex)
-            case .go: tools.contains(.go)
-            case .pypi: tools.contains(.python)
-            case .crates: tools.contains(.rust)
-            }
-        }
     }
 
     mutating func setDeveloperTool(_ tool: DeveloperTool, isEnabled: Bool) {

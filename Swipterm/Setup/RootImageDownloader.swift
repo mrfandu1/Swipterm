@@ -1,22 +1,10 @@
 import Foundation
 import SwiptermKit
 
-nonisolated enum RootImageDownloadError: LocalizedError, Sendable {
-    case emptyFile
-
-    var errorDescription: String? {
-        switch self {
-        case .emptyFile:
-            String(localized: "The downloaded archive is empty.")
-        }
-    }
-}
-
 nonisolated enum RootImageDownloader {
     static func download(
-        from urls: [URL],
-        expectedBytes: Int64? = nil,
-        onProgress: @escaping @Sendable (HTTPDownloadProgress) -> Void
+        from url: URL,
+        progress: @escaping @Sendable (_ bytesWritten: Int64, _ totalBytes: Int64?) -> Void
     ) async throws -> URL {
         let stagingDir = FileManager.default.temporaryDirectory
             .appending(path: "SwiptermDownloads", directoryHint: .isDirectory)
@@ -25,17 +13,13 @@ nonisolated enum RootImageDownloader {
             [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
             ofItemAtPath: stagingDir.path(percentEncoded: false)
         )
-        let destination = stagingDir.appending(path: "\(UUID().uuidString)\(archiveExtension(from: urls[0]))")
+        let destination = stagingDir.appending(path: "\(UUID().uuidString)\(archiveExtension(from: url))")
         do {
-            try await HTTPClient.download(
-                from: urls,
-                to: destination,
-                expectedBytes: expectedBytes,
-                progress: onProgress
-            )
+            try await HTTPClient.download(from: url, to: destination, progress: progress).requireSuccess()
             return destination
-        } catch HTTPError.emptyBody {
-            throw RootImageDownloadError.emptyFile
+        } catch {
+            try? FileManager.default.removeItem(at: destination)
+            throw error
         }
     }
 

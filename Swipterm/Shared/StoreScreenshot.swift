@@ -22,7 +22,6 @@
             displayTitle: "3.24",
             buildSerial: "",
             artifactPath: "",
-            compressedBytes: nil,
             sortRank: 0,
             isRecommended: true
         )

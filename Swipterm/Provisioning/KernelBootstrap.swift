@@ -6,7 +6,6 @@ nonisolated struct KernelPackage: Sendable {
     let name: String
     let version: String
     let url: URL
-    let size: Int64?
     let record: Data?
     let isDependency: Bool
 }
@@ -21,8 +20,8 @@ nonisolated enum KernelBootstrapError: LocalizedError {
         switch self {
         case .unknownRelease:
             "The image has no os-release."
-        case let .kernelUnavailable(mirror):
-            String(localized: "\(mirror) has no kernel package for this release.")
+        case let .kernelUnavailable(distribution):
+            String(localized: "\(distribution) has no kernel package for this release.")
         case let .invalidIndex(url):
             "Unrecognized package index: \(url.absoluteString)"
         case let .invalidPackage(name):
@@ -32,7 +31,7 @@ nonisolated enum KernelBootstrapError: LocalizedError {
 }
 
 nonisolated struct KernelBootstrap: Sendable {
-    typealias Fetch = @Sendable (_ url: URL, _ expectedBytes: Int64?) async throws -> URL
+    typealias Fetch = @Sendable (_ url: URL) async throws -> URL
 
     struct Installed: Sendable {
         let package: KernelPackage
@@ -44,10 +43,24 @@ nonisolated struct KernelBootstrap: Sendable {
 
     let distribution: LinuxDistribution
     let release: OSRelease
-    let mirror: PackageMirror
 
     private var root: String {
-        mirror.root.url
+        switch distribution {
+        case .alma: "https://repo.almalinux.org/almalinux"
+        case .alpine: "https://dl-cdn.alpinelinux.org/alpine"
+        case .arch: "https://ca.us.mirror.archlinuxarm.org"
+        case .centos: "https://mirror.stream.centos.org"
+        case .debian: "https://deb.debian.org/debian"
+        case .devuan: "https://pkgmaster.devuan.org/merged"
+        case .fedora: "https://dl.fedoraproject.org/pub/fedora/linux"
+        case .kali: "https://kali.download/kali"
+        case .openEuler: "https://repo.openeuler.org"
+        case .openSUSE: "https://download.opensuse.org"
+        case .oracle: "https://yum.oracle.com/repo/OracleLinux"
+        case .rocky: "https://dl.rockylinux.org/pub/rocky"
+        case .ubuntu: "https://ports.ubuntu.com/ubuntu-ports"
+        case .void: "https://repo-default.voidlinux.org"
+        }
     }
 
     @concurrent func packages(fetch: Fetch) async throws -> [KernelPackage] {
@@ -56,11 +69,10 @@ nonisolated struct KernelBootstrap: Sendable {
         let version = release.versionID ?? ""
         switch distribution {
         case .debian:
-            var sources = [AptSource(base: root, suite: codename)]
-            if let security = mirror.root.securityURL {
-                sources.append(AptSource(base: security, suite: "\(codename)-security", optional: true))
-            }
-            return try await apt(sources, metas: ["linux-image-cloud-arm64"], fetch: fetch)
+            return try await apt([
+                AptSource(base: root, suite: codename),
+                AptSource(base: "https://deb.debian.org/debian-security", suite: "\(codename)-security", optional: true),
+            ], metas: ["linux-image-cloud-arm64"], fetch: fetch)
         case .devuan:
             return try await apt([
                 AptSource(base: root, suite: codename),
@@ -172,8 +184,8 @@ nonisolated struct KernelBootstrap: Sendable {
             let dists = "\(source.base)/dists/\(source.suite)"
             let releaseFile: URL
             do {
-                releaseFile = try await fetch(URL(string: "\(dists)/Release")!, nil)
-            } catch let error as HTTPError where error == .unexpectedStatus(404) && source.optional {
+                releaseFile = try await fetch(URL(string: "\(dists)/Release")!)
+            } catch let error as HTTPStatusError where error.statusCode == 404 && source.optional {
                 continue
             }
             let index = try Self.aptIndex(in: String(decoding: Data(contentsOf: releaseFile), as: UTF8.self))
@@ -181,7 +193,7 @@ nonisolated struct KernelBootstrap: Sendable {
             guard let index else {
                 throw KernelBootstrapError.invalidIndex(URL(string: "\(dists)/Release")!)
             }
-            let file = try await fetch(URL(string: "\(dists)/\(index.path)")!, index.size)
+            let file = try await fetch(URL(string: "\(dists)/\(index)")!)
             defer { try? FileManager.default.removeItem(at: file) }
             try Self.scanAptIndex(file, base: source.base, metas: Set(metas)) { stanza in
                 stanzas[stanza.name, default: []].append(stanza)
@@ -193,7 +205,7 @@ nonisolated struct KernelBootstrap: Sendable {
             }
         }
         guard let meta = metas.lazy.compactMap({ newest($0) }).first else {
-            throw KernelBootstrapError.kernelUnavailable(mirror.name)
+            throw KernelBootstrapError.kernelUnavailable(distribution.displayName)
         }
         var selected = [meta]
         var index = 0
@@ -215,7 +227,6 @@ nonisolated struct KernelBootstrap: Sendable {
                 name: stanza.name,
                 version: stanza.version,
                 url: url,
-                size: stanza.fields["Size"].flatMap { Int64($0) },
                 record: nil,
                 isDependency: offset > 0
             )
@@ -226,20 +237,15 @@ nonisolated struct KernelBootstrap: Sendable {
         name.hasPrefix("linux-image-") || name.hasPrefix("linux-modules-")
     }
 
-    private static func aptIndex(in text: String) -> (path: String, size: Int64)? {
-        var sizes: [String: Int64] = [:]
+    private static func aptIndex(in text: String) -> String? {
+        var paths: Set<String> = []
         for line in text.split(separator: "\n") where line.hasPrefix(" ") {
             let fields = line.split(separator: " ")
-            if fields.count == 3, let size = Int64(fields[1]) {
-                sizes[String(fields[2])] = size
+            if fields.count == 3, Int64(fields[1]) != nil {
+                paths.insert(String(fields[2]))
             }
         }
-        for path in ["main/binary-arm64/Packages.xz", "main/binary-arm64/Packages.gz", "main/binary-arm64/Packages"] {
-            if let size = sizes[path] {
-                return (path, size)
-            }
-        }
-        return nil
+        return ["main/binary-arm64/Packages.xz", "main/binary-arm64/Packages.gz", "main/binary-arm64/Packages"].first(where: paths.contains)
     }
 
     private static func scanAptIndex(_ file: URL, base: String, metas: Set<String>, _ body: (AptStanza) -> Void) throws {
@@ -285,7 +291,6 @@ nonisolated struct KernelBootstrap: Sendable {
         let epoch: String
         let version: String
         let release: String
-        let size: Int64?
         let url: URL
 
         var evr: String {
@@ -300,16 +305,16 @@ nonisolated struct KernelBootstrap: Sendable {
             let repomdURL = URL(string: "\(repository)repodata/repomd.xml")!
             let repomd: URL
             do {
-                repomd = try await fetch(repomdURL, nil)
-            } catch let error as HTTPError where error == .unexpectedStatus(404) && index >= repositories.count - optional {
+                repomd = try await fetch(repomdURL)
+            } catch let error as HTTPStatusError where error.statusCode == 404 && index >= repositories.count - optional {
                 continue
             }
             let text = try String(decoding: Data(contentsOf: repomd), as: UTF8.self)
             try? FileManager.default.removeItem(at: repomd)
-            guard let primary = Self.primaryLocation(in: text), let primaryURL = URL(string: primary.href, relativeTo: URL(string: repository)) else {
+            guard let primary = Self.primaryLocation(in: text), let primaryURL = URL(string: primary, relativeTo: URL(string: repository)) else {
                 throw KernelBootstrapError.invalidIndex(repomdURL)
             }
-            let file = try await fetch(primaryURL.absoluteURL, primary.size)
+            let file = try await fetch(primaryURL.absoluteURL)
             defer { try? FileManager.default.removeItem(at: file) }
             try Self.scanPrimary(file, base: URL(string: repository)!, names: names) { record in
                 records[record.name, default: []].append(record)
@@ -325,24 +330,21 @@ nonisolated struct KernelBootstrap: Sendable {
                     name: record.name,
                     version: "\(record.version)-\(record.release)",
                     url: record.url,
-                    size: record.size,
                     record: nil,
                     isDependency: record.name != primary.name
                 )
             }
         }
-        throw KernelBootstrapError.kernelUnavailable(mirror.name)
+        throw KernelBootstrapError.kernelUnavailable(distribution.displayName)
     }
 
-    private static func primaryLocation(in repomd: String) -> (href: String, size: Int64?)? {
+    private static func primaryLocation(in repomd: String) -> String? {
         guard let start = repomd.range(of: "<data type=\"primary\">"),
               let end = repomd.range(of: "</data>", range: start.upperBound ..< repomd.endIndex)
         else {
             return nil
         }
-        let block = String(repomd[start.upperBound ..< end.lowerBound])
-        guard let href = attribute("href", in: block) else { return nil }
-        return (href, element("size", in: block).flatMap { Int64($0) })
+        return attribute("href", in: String(repomd[start.upperBound ..< end.lowerBound]))
     }
 
     private static func scanPrimary(_ file: URL, base: URL, names: Set<String>, _ body: (RPMRecord) -> Void) throws {
@@ -381,7 +383,6 @@ nonisolated struct KernelBootstrap: Sendable {
         var name: String?
         var arch: String?
         var version: (String, String, String)?
-        var size: Int64?
         var href: String?
         for line in lines {
             if line.hasPrefix("<name>") {
@@ -390,8 +391,6 @@ nonisolated struct KernelBootstrap: Sendable {
                 arch = element("arch", in: line)
             } else if line.hasPrefix("<version "), let ver = attribute("ver", in: line), let rel = attribute("rel", in: line) {
                 version = (attribute("epoch", in: line) ?? "0", ver, rel)
-            } else if line.hasPrefix("<size ") {
-                size = attribute("package", in: line).flatMap { Int64($0) }
             } else if line.hasPrefix("<location ") {
                 href = attribute("href", in: line)
             }
@@ -399,7 +398,7 @@ nonisolated struct KernelBootstrap: Sendable {
         guard let name, arch == "aarch64", let version, let href, let url = URL(string: href, relativeTo: base) else {
             return nil
         }
-        return RPMRecord(name: name, epoch: version.0, version: version.1, release: version.2, size: size, url: url.absoluteURL)
+        return RPMRecord(name: name, epoch: version.0, version: version.1, release: version.2, url: url.absoluteURL)
     }
 
     private static func trimmedStart(_ line: UnsafeBufferPointer<UInt8>) -> UnsafeBufferPointer<UInt8> {
@@ -429,14 +428,14 @@ nonisolated struct KernelBootstrap: Sendable {
 
     private func apk(_ repository: String, name: String, fetch: Fetch) async throws -> [KernelPackage] {
         let indexURL = URL(string: "\(repository)/aarch64/APKINDEX.tar.gz")!
-        let file = try await fetch(indexURL, nil)
+        let file = try await fetch(indexURL)
         defer { try? FileManager.default.removeItem(at: file) }
         guard let index = try Self.archiveFile(named: "APKINDEX", in: file) else {
             throw KernelBootstrapError.invalidIndex(indexURL)
         }
         let records = String(decoding: index, as: UTF8.self).components(separatedBy: "\n\n")
         guard let record = records.first(where: { $0.hasPrefix("P:\(name)\n") || $0.contains("\nP:\(name)\n") }) else {
-            throw KernelBootstrapError.kernelUnavailable(mirror.name)
+            throw KernelBootstrapError.kernelUnavailable(distribution.displayName)
         }
         let fields = Self.apkFields(record)
         guard let version = fields["V"], let url = URL(string: "\(repository)/aarch64/\(name)-\(version).apk") else {
@@ -446,7 +445,6 @@ nonisolated struct KernelBootstrap: Sendable {
             name: name,
             version: version,
             url: url,
-            size: fields["S"].flatMap { Int64($0) },
             record: Data(record.trimmingCharacters(in: .newlines).utf8),
             isDependency: false
         )]
@@ -464,7 +462,7 @@ nonisolated struct KernelBootstrap: Sendable {
 
     private func pacman(_ repository: String, name: String, fetch: Fetch) async throws -> [KernelPackage] {
         let databaseURL = URL(string: "\(repository)/core.db")!
-        let file = try await fetch(databaseURL, nil)
+        let file = try await fetch(databaseURL)
         defer { try? FileManager.default.removeItem(at: file) }
         let reader = try LinuxArchiveReader(contentsOf: file)
         while let path = try reader.next() {
@@ -480,12 +478,11 @@ nonisolated struct KernelBootstrap: Sendable {
                 name: name,
                 version: version,
                 url: url,
-                size: desc["CSIZE"]?.first.flatMap { Int64($0) },
                 record: nil,
                 isDependency: false
             )]
         }
-        throw KernelBootstrapError.kernelUnavailable(mirror.name)
+        throw KernelBootstrapError.kernelUnavailable(distribution.displayName)
     }
 
     private static func pacmanSections(_ text: String) -> [String: [String]] {
@@ -508,20 +505,20 @@ nonisolated struct KernelBootstrap: Sendable {
 
     private func xbps(_ repository: String, meta: String, fetch: Fetch) async throws -> [KernelPackage] {
         let indexURL = URL(string: "\(repository)/aarch64-repodata")!
-        let file = try await fetch(indexURL, nil)
+        let file = try await fetch(indexURL)
         defer { try? FileManager.default.removeItem(at: file) }
         guard let index = try Self.archiveFile(named: "index.plist", in: file) else {
             throw KernelBootstrapError.invalidIndex(indexURL)
         }
         guard let metaEntry = Self.xbpsEntry(meta, in: index) else {
-            throw KernelBootstrapError.kernelUnavailable(mirror.name)
+            throw KernelBootstrapError.kernelUnavailable(distribution.displayName)
         }
         let series = (metaEntry["run_depends"] as? [String] ?? []).compactMap { dependency -> String? in
             let name = dependency.prefix { $0 != ">" && $0 != "<" && $0 != "=" }
             return name.wholeMatch(of: /linux[0-9]+\.[0-9]+/) != nil ? String(name) : nil
         }
         guard let kernel = series.first, let kernelEntry = Self.xbpsEntry(kernel, in: index) else {
-            throw KernelBootstrapError.kernelUnavailable(mirror.name)
+            throw KernelBootstrapError.kernelUnavailable(distribution.displayName)
         }
         return try [(meta, metaEntry, false), (kernel, kernelEntry, true)].map { name, entry, isDependency in
             guard let pkgver = entry["pkgver"] as? String, let url = URL(string: "\(repository)/\(pkgver).aarch64.xbps") else {
@@ -531,7 +528,6 @@ nonisolated struct KernelBootstrap: Sendable {
                 name: name,
                 version: String(pkgver.dropFirst(name.count + 1)),
                 url: url,
-                size: (entry["filename-size"] as? NSNumber)?.int64Value,
                 record: PropertyListSerialization.data(fromPropertyList: entry, format: .xml, options: 0),
                 isDependency: isDependency
             )
