@@ -41,8 +41,6 @@ struct SettingsView: View {
                             dismiss()
                             system.reset()
                         }
-                    } message: {
-                        Text("All files and packages in the container will be erased, and you’ll return to setup.")
                     }
                 }
             }
