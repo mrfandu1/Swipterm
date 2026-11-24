@@ -13,13 +13,11 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            Section("Terminal") {
-                NavigationLink("Ghostty Configuration") {
-                    GhosttyConfigurationView()
-                }
-            }
             if let container = system.installedContainer {
                 Section("Container") {
+                    #if DEBUG || SIDELOAD
+                        JITRow()
+                    #endif
                     if settings.isCaffeinateAvailable {
                         Toggle("Keep Running in Background", isOn: Binding {
                             settings.isCaffeinateEnabled
@@ -54,6 +52,11 @@ struct SettingsView: View {
                     }
                 }
             }
+            Section("Terminal") {
+                NavigationLink("Ghostty Configuration") {
+                    GhosttyConfigurationView()
+                }
+            }
         }
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
@@ -84,13 +87,6 @@ struct SettingsView: View {
         .onDisappear {
             location.isSettingsVisible = false
             location.isPresentingDeniedAlert = false
-        }
-        .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Done") {
-                    dismiss()
-                }
-            }
         }
     }
 }

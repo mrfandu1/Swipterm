@@ -416,6 +416,8 @@
 				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Swipterm/Info.plist;
+				INFOPLIST_PREPROCESS = YES;
+				INFOPLIST_PREPROCESSOR_DEFINITIONS = "$(SWIFT_ACTIVE_COMPILATION_CONDITIONS)";
 				INFOPLIST_KEY_CFBundleDisplayName = Swipterm;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
@@ -459,6 +461,8 @@
 				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Swipterm/Info.plist;
+				INFOPLIST_PREPROCESS = YES;
+				INFOPLIST_PREPROCESSOR_DEFINITIONS = "$(SWIFT_ACTIVE_COMPILATION_CONDITIONS)";
 				INFOPLIST_KEY_CFBundleDisplayName = Swipterm;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
@@ -565,7 +569,7 @@
 			repositoryURL = "https://github.com/swipt-automation/SwiptermKit";
 			requirement = {
 				kind = upToNextMinorVersion;
-				minimumVersion = 0.2.2026112401;
+				minimumVersion = 0.2.2026112403;
 			};
 		};
 		5D0000000000000000000A06 /* XCRemoteSwiftPackageReference "GRDB" */ = {

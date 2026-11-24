@@ -76,6 +76,9 @@ private struct ContentView: View {
             system.onWillShutdown = {
                 sessionManager.closeAll()
             }
+            #if DEBUG || SIDELOAD
+                SwiptJIT.shared.start()
+            #endif
             await ImportedFontStore.shared.bootstrap()
             system.bootstrap()
         }

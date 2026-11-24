@@ -103,6 +103,9 @@ struct SetupView: View {
             }
 
             Section("Configuration") {
+                #if DEBUG || SIDELOAD
+                    JITRow()
+                #endif
                 if showsStartupModePicker {
                     StartupModePicker(selection: clearingFocus($draft.initMode))
                 }

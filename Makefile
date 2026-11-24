@@ -29,7 +29,7 @@ build_ios_ipa: archive_ios_ipa
 archive_ios_ipa:
 	rm -rf build/Swipterm-Sideload.xcarchive build/Payload build/Swipterm.ipa
 	xcodebuild archive -skipMacroValidation -derivedDataPath build/DerivedData $(XCODEBUILD_FLAGS) -scheme Swipterm -configuration Release -destination 'generic/platform=iOS' -archivePath build/Swipterm-Sideload.xcarchive \
-		CODE_SIGNING_ALLOWED=NO | xcbeautify
+		CODE_SIGNING_ALLOWED=NO SWIFT_ACTIVE_COMPILATION_CONDITIONS='$$(inherited) SIDELOAD' | xcbeautify
 	mkdir build/Payload
 	cp -R build/Swipterm-Sideload.xcarchive/Products/Applications/Swipterm.app build/Payload/
 	codesign --force --sign - --entitlements Swipterm/Swipterm.entitlements build/Payload/Swipterm.app

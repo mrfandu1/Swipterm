@@ -21,10 +21,17 @@ struct TerminalSessionContentView: View {
                 isActive: isActive,
                 isVisible: isVisible
             )
-            if session.phase == .starting || session.phase == .running, !session.hasVisibleOutput {
-                ProgressView()
-                    .controlSize(.large)
-                    .environment(\.colorScheme, overlayColorScheme)
+            if session.phase == .starting || session.phase == .running, !session.hasVisibleOutput || isEnablingJIT {
+                VStack(spacing: 12) {
+                    ProgressView()
+                        .controlSize(.large)
+                    if let startupStatus {
+                        Text(startupStatus)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .environment(\.colorScheme, overlayColorScheme)
             }
         }
         .accessibilityHidden(!isVisible)
@@ -62,6 +69,24 @@ struct TerminalSessionContentView: View {
                 isEndAcknowledged = true
             }
         }
+    }
+
+    private var isEnablingJIT: Bool {
+        #if DEBUG || SIDELOAD
+            SwiptJIT.shared.status == .enabling
+        #else
+            false
+        #endif
+    }
+
+    private var startupStatus: LocalizedStringKey? {
+        if isEnablingJIT {
+            return "Enabling JIT…"
+        }
+        if LinuxSystem.shared.state == .booting {
+            return "Starting Linux…"
+        }
+        return nil
     }
 
     private var endReason: TerminalSession.EndReason? {
