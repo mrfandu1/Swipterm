@@ -889,6 +889,21 @@ nonisolated enum ContainerProvisioner {
         install_antigravity
     }
 
+    clean_caches() {
+        case "$SWIPTERM_DISTRIBUTION" in
+        debian | devuan | kali | ubuntu) apt-get clean ;;
+        arch) rm -rf /var/cache/pacman/pkg/* ;;
+        void) rm -rf /var/cache/xbps/* ;;
+        esac
+        if want_agent claude-code && ! want_tool pnpm; then
+            if want_tool bun; then
+                as_user "bun pm cache rm"
+            else
+                as_user "npm cache clean --force"
+            fi
+        fi
+    }
+
     case "$user" in
     root) ;;
     "" | -* | *[!A-Za-z0-9._-]*) fail "Invalid username: $user" ;;
@@ -944,6 +959,7 @@ nonisolated enum ContainerProvisioner {
     configure_path
     install_rust
     install_agents
+    clean_caches
 
     step "Done"
     """#
