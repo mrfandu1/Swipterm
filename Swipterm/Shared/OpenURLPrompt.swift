@@ -1,4 +1,5 @@
 import CoreImage.CIFilterBuiltins
+import SafariServices
 import SwiftUI
 import UIKit
 
@@ -6,36 +7,94 @@ struct OpenURLPromptModifier: ViewModifier {
     private let system = LinuxSystem.shared
 
     @Environment(\.openURL) private var openURL
-    @State private var qrCodeURL: URL?
+    @State private var webURL: URL?
+    @State private var qrCodeImage: UIImage?
     @State private var isShowingQRCode = false
 
     func body(content: Content) -> some View {
         content
             .alert("Open URL", isPresented: Binding {
-                system.pendingOpenURL != nil
-            } set: { _ in
-                system.pendingOpenURL = nil
+                system.pendingOpenURL != nil && !isShowingQRCode
+            } set: { isPresented in
+                if !isPresented, !isShowingQRCode {
+                    system.pendingOpenURL = nil
+                }
             }, presenting: system.pendingOpenURL) { url in
+                let isWebURL = url.scheme?.lowercased() == "http" || url.scheme?.lowercased() == "https"
                 Button("Open") {
-                    openURL(url)
+                    if isWebURL {
+                        webURL = url
+                    } else {
+                        openURL(url)
+                    }
                 }
                 .keyboardShortcut(.defaultAction)
-                Button("Copy") {
+                if isWebURL {
+                    Button("Open in Safari") {
+                        openURL(url)
+                    }
+                }
+                Button("Copy URL") {
                     UIPasteboard.general.string = url.absoluteString
                 }
                 Button("Show QR Code") {
-                    qrCodeURL = url
+                    system.pendingOpenURL = url
+                    qrCodeImage = Self.qrCode(for: url)
                     isShowingQRCode = true
                 }
                 Button("Cancel", role: .cancel) {}
             } message: { url in
                 Text(verbatim: Self.message(for: url))
             }
-            .sheet(isPresented: $isShowingQRCode) {
-                if let qrCodeURL {
-                    URLQRCodeSheet(url: qrCodeURL)
+            .sheet(isPresented: Binding {
+                webURL != nil
+            } set: { isPresented in
+                if !isPresented {
+                    webURL = nil
+                }
+            }) {
+                if let webURL {
+                    SafariView(url: webURL)
+                        .ignoresSafeArea()
                 }
             }
+            .overlay {
+                ZStack {
+                    if isShowingQRCode, let qrCodeImage {
+                        Color.black.opacity(0.3)
+                            .ignoresSafeArea()
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                isShowingQRCode = false
+                            }
+                            .transition(.opacity)
+
+                        URLQRCodePopup(qrCode: qrCodeImage) {
+                            isShowingQRCode = false
+                        }
+                        .padding(20)
+                        .transition(.scale(scale: 1.06).combined(with: .opacity))
+                    }
+                }
+                .allowsHitTesting(isShowingQRCode)
+                .animation(.easeOut(duration: 0.2), value: isShowingQRCode)
+            }
+            .onChange(of: system.pendingOpenURL) { _, url in
+                if url == nil {
+                    isShowingQRCode = false
+                }
+            }
+    }
+
+    private static func qrCode(for url: URL) -> UIImage? {
+        let filter = CIFilter.qrCodeGenerator()
+        filter.message = Data(url.absoluteString.utf8)
+        guard let image = filter.outputImage,
+              let cgImage = CIContext().createCGImage(image, from: image.extent)
+        else {
+            return nil
+        }
+        return UIImage(cgImage: cgImage)
     }
 
     /// UIAlertController ignores lineLimit in the message, and lays it out at least 238 points wide
@@ -67,45 +126,70 @@ struct OpenURLPromptModifier: ViewModifier {
     }
 }
 
-private struct URLQRCodeSheet: View {
-    let url: URL
-
-    @Environment(\.dismiss) private var dismiss
+private struct URLQRCodePopup: View {
+    let qrCode: UIImage
+    let onDismiss: () -> Void
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if let qrCode {
-                    Image(uiImage: qrCode)
-                        .interpolation(.none)
-                        .resizable()
-                        .scaledToFit()
-                        .padding(16)
-                        .background(.white, in: .rect(cornerRadius: 16))
-                        .padding()
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .navigationTitle("QR Code")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
-                        dismiss()
+        let content = VStack(spacing: 14) {
+            Text("QR Code")
+                .font(.headline)
+            Image(uiImage: qrCode)
+                .interpolation(.none)
+                .resizable()
+                .aspectRatio(1, contentMode: .fit)
+                .padding(12)
+                .background(.white, in: RoundedRectangle(cornerRadius: innerCornerRadius, style: .continuous))
+        }
+        .padding(.top, 20)
+        .padding([.horizontal, .bottom], 16)
+        .frame(maxWidth: 420)
+
+        Group {
+            if #available(iOS 26.0, *) {
+                content
+                    .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 34, style: .continuous))
+                    .contentShape(RoundedRectangle(cornerRadius: 34, style: .continuous))
+            } else {
+                content
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
                     }
-                }
+                    .shadow(color: .black.opacity(0.2), radius: 20, y: 8)
+                    .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
         }
+        .onTapGesture {}
+        .background {
+            Button(action: onDismiss) {
+                EmptyView()
+            }
+            .keyboardShortcut(.cancelAction)
+            .opacity(0)
+            .frame(width: 0, height: 0)
+            .accessibilityHidden(true)
+        }
+        .accessibilityAddTraits(.isModal)
+        .accessibilityAction(.escape, onDismiss)
     }
 
-    private var qrCode: UIImage? {
-        let filter = CIFilter.qrCodeGenerator()
-        filter.message = Data(url.absoluteString.utf8)
-        guard let image = filter.outputImage,
-              let cgImage = CIContext().createCGImage(image, from: image.extent)
-        else {
-            return nil
+    private var innerCornerRadius: CGFloat {
+        if #available(iOS 26.0, *) {
+            18
+        } else {
+            10
         }
-        return UIImage(cgImage: cgImage)
     }
+}
+
+private struct SafariView: UIViewControllerRepresentable {
+    let url: URL
+
+    func makeUIViewController(context _: Context) -> SFSafariViewController {
+        SFSafariViewController(url: url)
+    }
+
+    func updateUIViewController(_: SFSafariViewController, context _: Context) {}
 }
