@@ -37,6 +37,7 @@ struct SetupView: View {
     private let system = LinuxSystem.shared
 
     @State private var showFileImporter = false
+    @State private var showSoftware = false
     @State private var errorMessage: String?
     @State private var catalogFailure: String?
     @FocusState private var focusedField: Field?
@@ -105,15 +106,13 @@ struct SetupView: View {
                 if showsStartupModePicker {
                     StartupModePicker(selection: clearingFocus($draft.initMode))
                 }
-                NavigationLink {
-                    SetupSoftwareView(
-                        software: $draft.software,
-                        ssh: $draft.ssh,
-                        shells: selectedDistribution?.shells(for: selectedRelease) ?? []
-                    )
+                Button {
+                    focusedField = nil
+                    showSoftware = true
                 } label: {
                     LabeledContent("Software", value: softwareSummary)
                 }
+                .foregroundStyle(.primary)
             }
 
             Section("User") {
@@ -158,6 +157,15 @@ struct SetupView: View {
         .modifier(FormColumnModifier())
         .navigationTitle("Swipterm Setup")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showSoftware) {
+            NavigationStack {
+                SetupSoftwareView(
+                    software: $draft.software,
+                    ssh: $draft.ssh,
+                    shells: selectedDistribution?.shells(for: selectedRelease) ?? []
+                )
+            }
+        }
         .fileImporter(
             isPresented: $showFileImporter,
             allowedContentTypes: Self.supportedArchiveTypes,
