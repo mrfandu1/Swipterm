@@ -17,6 +17,8 @@ final class AppSettings {
         static let fontFollowTheme = "fontFollowTheme"
         static let fontFamily = "fontFamily"
         static let fontSize = "fontSize"
+        static let caffeinateAvailable = "caffeinateAvailable"
+        static let caffeinateEnabled = "caffeinateEnabled"
     }
 
     var lightTheme: String {
@@ -47,6 +49,14 @@ final class AppSettings {
         didSet { saveTerminalAppearance(fontSize, for: Key.fontSize) }
     }
 
+    var isCaffeinateAvailable: Bool {
+        didSet { store.set(isCaffeinateAvailable, for: Key.caffeinateAvailable) }
+    }
+
+    var isCaffeinateEnabled: Bool {
+        didSet { store.set(isCaffeinateEnabled, for: Key.caffeinateEnabled) }
+    }
+
     private let store = PreferenceStore.shared
 
     private init() {
@@ -57,6 +67,8 @@ final class AppSettings {
         fontFollowTheme = store.value(Bool.self, for: Key.fontFollowTheme) ?? true
         fontFamily = store.value(String.self, for: Key.fontFamily) ?? ""
         fontSize = store.value(Double.self, for: Key.fontSize) ?? 10
+        isCaffeinateAvailable = store.value(Bool.self, for: Key.caffeinateAvailable) ?? false
+        isCaffeinateEnabled = store.value(Bool.self, for: Key.caffeinateEnabled) ?? false
     }
 
     private func saveTerminalAppearance(_ value: some Encodable, for name: String) {

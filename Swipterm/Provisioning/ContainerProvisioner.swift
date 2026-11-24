@@ -685,7 +685,7 @@ nonisolated enum ContainerProvisioner {
         case "${SWIPTERM_SHELL:-}" in
         zsh)
             if [ ! -e "$user_home/.zshrc" ]; then
-                touch "$user_home/.zshrc"
+                printf 'autoload -Uz compinit && compinit\n' > "$user_home/.zshrc"
                 chown "$user:$user_group" "$user_home/.zshrc"
             fi
             ;;

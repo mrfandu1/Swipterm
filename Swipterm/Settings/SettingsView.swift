@@ -1,7 +1,10 @@
 import SwiftUI
+import UIKit
 
 struct SettingsView: View {
     private let system = LinuxSystem.shared
+    private let settings = AppSettings.shared
+    @Bindable private var location = HostLocation.shared
 
     @Environment(\.dismiss) private var dismiss
     @State private var dataSize: Int64?
@@ -17,6 +20,13 @@ struct SettingsView: View {
             }
             if let container = system.installedContainer {
                 Section("Container") {
+                    if settings.isCaffeinateAvailable {
+                        Toggle("Keep Running in Background", isOn: Binding {
+                            settings.isCaffeinateEnabled
+                        } set: { isEnabled in
+                            location.setCaffeinateEnabled(isEnabled)
+                        })
+                    }
                     LabeledContent("Data Size") {
                         if let dataSize {
                             Text(dataSize.formatted(.byteCount(style: .file)))
@@ -59,6 +69,21 @@ struct SettingsView: View {
             Button("Later", role: .cancel) {}
         } message: {
             Text("Restart the container to apply the new startup mode.")
+        }
+        .alert("No Location Access", isPresented: $location.isPresentingDeniedAlert) {
+            Button("Open Settings") {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            }
+            Button("OK", role: .cancel) {}
+        }
+        .onAppear {
+            location.isSettingsVisible = true
+        }
+        .onDisappear {
+            location.isSettingsVisible = false
+            location.isPresentingDeniedAlert = false
         }
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {

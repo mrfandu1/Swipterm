@@ -15,12 +15,6 @@
       "comment" : "Privacy - Local Network Usage Description",
       "extractionState" : "extracted_with_value",
       "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Linux programs in Swipterm can connect to devices on your local network and accept connections from them."
-          }
-        },
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
@@ -67,6 +61,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Τα προγράμματα Linux στο Swipterm μπορούν να συνδέονται σε συσκευές του τοπικού σας δικτύου και να αποδέχονται συνδέσεις από αυτές."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Linux programs in Swipterm can connect to devices on your local network and accept connections from them."
           }
         },
         "es" : {
@@ -325,6 +325,959 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Swipterm中的Linux程式可以連線至區域網路上的裝置，也可以接受這些裝置的連線。"
+          }
+        }
+      }
+    },
+    "NSLocationAlwaysAndWhenInUseUsageDescription" : {
+      "comment" : "Privacy - Location Always and When In Use Usage Description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "يمكن لبرامج Linux في Swipterm الوصول إلى موقعك، بما في ذلك في الخلفية."
+          }
+        },
+        "bg" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Програмите за Linux в Swipterm имат достъп до местоположението Ви, включително във фонов режим."
+          }
+        },
+        "bn" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm-এর Linux প্রোগ্রামগুলি ব্যাকগ্রাউন্ড সহ আপনার লোকেশন অ্যাক্সেস করতে পারে।"
+          }
+        },
+        "ca" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Els programes Linux del Swipterm poden accedir a la teva ubicació, fins i tot en segon pla."
+          }
+        },
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linuxové programy ve Swipterm mají přístup k vaší poloze, a to i na pozadí."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linux-programmer i Swipterm har adgang til din lokalitet, også i baggrunden."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linux-Programme in Swipterm können auf deinen Standort zugreifen, auch im Hintergrund."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Τα προγράμματα Linux στο Swipterm μπορούν να έχουν πρόσβαση στην τοποθεσία σας, ακόμη και στο παρασκήνιο."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Linux programs in Swipterm can access your location, including in the background."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los programas de Linux de Swipterm pueden acceder a tu ubicación, incluso en segundo plano."
+          }
+        },
+        "es-419" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los programas de Linux de Swipterm pueden acceder a tu ubicación, incluso en segundo plano."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "برنامه‌های Linux در Swipterm می‌توانند به مکان شما، از جمله در پس‌زمینه، دسترسی داشته باشند."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swiptermin Linux-ohjelmat voivat käyttää sijaintiasi myös taustalla."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les programmes Linux de Swipterm peuvent accéder à votre position, y compris en arrière-plan."
+          }
+        },
+        "fr-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les programmes Linux de Swipterm peuvent accéder à votre position, y compris en arrière-plan."
+          }
+        },
+        "gu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swiptermમાંના Linux પ્રોગ્રામ બૅકગ્રાઉન્ડ સહિત તમારા સ્થાનને ઍક્સેસ કરી શકે છે."
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "תוכנות Linux ב-Swipterm יכולות לגשת למיקום שלך, כולל ברקע."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm के Linux प्रोग्राम बैकग्राउंड सहित आपकी लोकेशन ऐक्सेस कर सकते हैं।"
+          }
+        },
+        "hr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linux programi u aplikaciji Swipterm mogu pristupiti vašoj lokaciji, uključujući u pozadini."
+          }
+        },
+        "hu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A Swiptermben futó Linux-programok hozzáférhetnek a helyzetéhez, a háttérben is."
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Program Linux di Swipterm dapat mengakses lokasi Anda, termasuk di latar belakang."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I programmi Linux in Swipterm possono accedere alla tua posizione, anche in background."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SwiptermのLinuxプログラムは、バックグラウンドも含めて位置情報にアクセスできます。"
+          }
+        },
+        "kk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm ішіндегі Linux бағдарламалары геолокацияңызға, соның ішінде аялық режимде де қол жеткізе алады."
+          }
+        },
+        "kn" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm ನಲ್ಲಿರುವ Linux ಪ್ರೋಗ್ರಾಂಗಳು ಹಿನ್ನೆಲೆಯನ್ನೂ ಒಳಗೊಂಡಂತೆ ನಿಮ್ಮ ಸ್ಥಳವನ್ನು ಪ್ರವೇಶಿಸಬಹುದು."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm의 Linux 프로그램은 백그라운드를 포함하여 사용자의 위치에 접근할 수 있습니다."
+          }
+        },
+        "lt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„Swipterm“ esančios „Linux“ programos gali pasiekti jūsų vietovės duomenis, įskaitant fone."
+          }
+        },
+        "ml" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm-ലെ Linux പ്രോഗ്രാമുകൾക്ക് പശ്ചാത്തലത്തിലുൾപ്പെടെ നിങ്ങളുടെ ലൊക്കേഷൻ ആക്സസ് ചെയ്യാൻ കഴിയും."
+          }
+        },
+        "mr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm मधील Linux प्रोग्राम बॅकग्राउंडसह तुमच्या स्थानाचा ॲक्सेस मिळवू शकतात."
+          }
+        },
+        "ms" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Program Linux dalam Swipterm boleh mengakses lokasi anda, termasuk di latar belakang."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linux-programmer i Swipterm har tilgang til posisjonen din, også i bakgrunnen."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linux-programma’s in Swipterm hebben toegang tot je locatie, ook op de achtergrond."
+          }
+        },
+        "or" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm ରେ ଥିବା Linux ପ୍ରୋଗ୍ରାମ୍ ବ୍ୟାକ୍‌ଗ୍ରାଉଣ୍ଡ୍ ସମେତ ଆପଣଙ୍କ ଲୋକେସନ୍ ଆକ୍ସେସ୍ କରିପାରିବେ।"
+          }
+        },
+        "pa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm ਵਿਚਲੇ Linux ਪ੍ਰੋਗਰਾਮ ਬੈਕਗ੍ਰਾਊਂਡ ਸਮੇਤ ਤੁਹਾਡੀ ਲੋਕੇਸ਼ਨ ਤੱਕ ਪਹੁੰਚ ਕਰ ਸਕਦੇ ਹਨ।"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Programy systemu Linux w Swipterm mogą uzyskiwać dostęp do Twojego położenia, również w tle."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Os programas Linux no Swipterm podem acessar sua localização, inclusive em segundo plano."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Os programas Linux no Swipterm podem aceder à sua localização, incluindo em segundo plano."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Programele Linux din Swipterm vă pot accesa locația, inclusiv în fundal."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Программы Linux в Swipterm могут получать доступ к Вашей геопозиции, в том числе в фоновом режиме."
+          }
+        },
+        "sk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linuxové programy vo Swipterm majú prístup k vašej polohe, a to aj na pozadí."
+          }
+        },
+        "sl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Programi Linux v aplikaciji Swipterm lahko dostopajo do vaše lokacije, tudi v ozadju."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linux-program i Swipterm kan få åtkomst till din plats, även i bakgrunden."
+          }
+        },
+        "ta" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm இல் உள்ள Linux நிரல்கள் பின்னணி உட்பட உங்கள் இருப்பிடத்தை அணுகலாம்."
+          }
+        },
+        "te" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm‌లోని Linux ప్రోగ్రామ్‌లు బ్యాక్‌గ్రౌండ్‌తో సహా మీ లొకేషన్‌ను యాక్సెస్ చేయగలవు."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "โปรแกรม Linux ใน Swipterm สามารถเข้าถึงตำแหน่งที่ตั้งของคุณได้ รวมถึงขณะทำงานอยู่เบื้องหลัง"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm’deki Linux programları arka plan da dahil olmak üzere konumunuza erişebilir."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Програми Linux у Swipterm можуть отримувати доступ до вашої геопозиції, зокрема у фоновому режимі."
+          }
+        },
+        "ur" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm میں Linux پروگرامز پس منظر سمیت آپ کے مقام تک رسائی حاصل کر سکتے ہیں۔"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Các chương trình Linux trong Swipterm có thể truy cập vị trí của bạn, kể cả trong nền."
+          }
+        },
+        "zh-HK" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm 中的 Linux 程式可以取用你的位置，包括在背景執行期間。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm 中的 Linux 程序可以访问你的位置信息，包括在后台运行期间。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm中的Linux程式可以取用你的位置，包括在背景執行期間。"
+          }
+        }
+      }
+    },
+    "NSLocationWhenInUseUsageDescription" : {
+      "comment" : "Privacy - Location When In Use Usage Description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "يمكن لبرامج Linux في Swipterm الوصول إلى موقعك، بما في ذلك في الخلفية."
+          }
+        },
+        "bg" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Програмите за Linux в Swipterm имат достъп до местоположението Ви, включително във фонов режим."
+          }
+        },
+        "bn" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm-এর Linux প্রোগ্রামগুলি ব্যাকগ্রাউন্ড সহ আপনার লোকেশন অ্যাক্সেস করতে পারে।"
+          }
+        },
+        "ca" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Els programes Linux del Swipterm poden accedir a la teva ubicació, fins i tot en segon pla."
+          }
+        },
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linuxové programy ve Swipterm mají přístup k vaší poloze, a to i na pozadí."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linux-programmer i Swipterm har adgang til din lokalitet, også i baggrunden."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linux-Programme in Swipterm können auf deinen Standort zugreifen, auch im Hintergrund."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Τα προγράμματα Linux στο Swipterm μπορούν να έχουν πρόσβαση στην τοποθεσία σας, ακόμη και στο παρασκήνιο."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Linux programs in Swipterm can access your location, including in the background."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los programas de Linux de Swipterm pueden acceder a tu ubicación, incluso en segundo plano."
+          }
+        },
+        "es-419" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los programas de Linux de Swipterm pueden acceder a tu ubicación, incluso en segundo plano."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "برنامه‌های Linux در Swipterm می‌توانند به مکان شما، از جمله در پس‌زمینه، دسترسی داشته باشند."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swiptermin Linux-ohjelmat voivat käyttää sijaintiasi myös taustalla."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les programmes Linux de Swipterm peuvent accéder à votre position, y compris en arrière-plan."
+          }
+        },
+        "fr-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les programmes Linux de Swipterm peuvent accéder à votre position, y compris en arrière-plan."
+          }
+        },
+        "gu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swiptermમાંના Linux પ્રોગ્રામ બૅકગ્રાઉન્ડ સહિત તમારા સ્થાનને ઍક્સેસ કરી શકે છે."
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "תוכנות Linux ב-Swipterm יכולות לגשת למיקום שלך, כולל ברקע."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm के Linux प्रोग्राम बैकग्राउंड सहित आपकी लोकेशन ऐक्सेस कर सकते हैं।"
+          }
+        },
+        "hr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linux programi u aplikaciji Swipterm mogu pristupiti vašoj lokaciji, uključujući u pozadini."
+          }
+        },
+        "hu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A Swiptermben futó Linux-programok hozzáférhetnek a helyzetéhez, a háttérben is."
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Program Linux di Swipterm dapat mengakses lokasi Anda, termasuk di latar belakang."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I programmi Linux in Swipterm possono accedere alla tua posizione, anche in background."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SwiptermのLinuxプログラムは、バックグラウンドも含めて位置情報にアクセスできます。"
+          }
+        },
+        "kk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm ішіндегі Linux бағдарламалары геолокацияңызға, соның ішінде аялық режимде де қол жеткізе алады."
+          }
+        },
+        "kn" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm ನಲ್ಲಿರುವ Linux ಪ್ರೋಗ್ರಾಂಗಳು ಹಿನ್ನೆಲೆಯನ್ನೂ ಒಳಗೊಂಡಂತೆ ನಿಮ್ಮ ಸ್ಥಳವನ್ನು ಪ್ರವೇಶಿಸಬಹುದು."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm의 Linux 프로그램은 백그라운드를 포함하여 사용자의 위치에 접근할 수 있습니다."
+          }
+        },
+        "lt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„Swipterm“ esančios „Linux“ programos gali pasiekti jūsų vietovės duomenis, įskaitant fone."
+          }
+        },
+        "ml" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm-ലെ Linux പ്രോഗ്രാമുകൾക്ക് പശ്ചാത്തലത്തിലുൾപ്പെടെ നിങ്ങളുടെ ലൊക്കേഷൻ ആക്സസ് ചെയ്യാൻ കഴിയും."
+          }
+        },
+        "mr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm मधील Linux प्रोग्राम बॅकग्राउंडसह तुमच्या स्थानाचा ॲक्सेस मिळवू शकतात."
+          }
+        },
+        "ms" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Program Linux dalam Swipterm boleh mengakses lokasi anda, termasuk di latar belakang."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linux-programmer i Swipterm har tilgang til posisjonen din, også i bakgrunnen."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linux-programma’s in Swipterm hebben toegang tot je locatie, ook op de achtergrond."
+          }
+        },
+        "or" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm ରେ ଥିବା Linux ପ୍ରୋଗ୍ରାମ୍ ବ୍ୟାକ୍‌ଗ୍ରାଉଣ୍ଡ୍ ସମେତ ଆପଣଙ୍କ ଲୋକେସନ୍ ଆକ୍ସେସ୍ କରିପାରିବେ।"
+          }
+        },
+        "pa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm ਵਿਚਲੇ Linux ਪ੍ਰੋਗਰਾਮ ਬੈਕਗ੍ਰਾਊਂਡ ਸਮੇਤ ਤੁਹਾਡੀ ਲੋਕੇਸ਼ਨ ਤੱਕ ਪਹੁੰਚ ਕਰ ਸਕਦੇ ਹਨ।"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Programy systemu Linux w Swipterm mogą uzyskiwać dostęp do Twojego położenia, również w tle."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Os programas Linux no Swipterm podem acessar sua localização, inclusive em segundo plano."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Os programas Linux no Swipterm podem aceder à sua localização, incluindo em segundo plano."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Programele Linux din Swipterm vă pot accesa locația, inclusiv în fundal."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Программы Linux в Swipterm могут получать доступ к Вашей геопозиции, в том числе в фоновом режиме."
+          }
+        },
+        "sk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linuxové programy vo Swipterm majú prístup k vašej polohe, a to aj na pozadí."
+          }
+        },
+        "sl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Programi Linux v aplikaciji Swipterm lahko dostopajo do vaše lokacije, tudi v ozadju."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linux-program i Swipterm kan få åtkomst till din plats, även i bakgrunden."
+          }
+        },
+        "ta" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm இல் உள்ள Linux நிரல்கள் பின்னணி உட்பட உங்கள் இருப்பிடத்தை அணுகலாம்."
+          }
+        },
+        "te" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm‌లోని Linux ప్రోగ్రామ్‌లు బ్యాక్‌గ్రౌండ్‌తో సహా మీ లొకేషన్‌ను యాక్సెస్ చేయగలవు."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "โปรแกรม Linux ใน Swipterm สามารถเข้าถึงตำแหน่งที่ตั้งของคุณได้ รวมถึงขณะทำงานอยู่เบื้องหลัง"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm’deki Linux programları arka plan da dahil olmak üzere konumunuza erişebilir."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Програми Linux у Swipterm можуть отримувати доступ до вашої геопозиції, зокрема у фоновому режимі."
+          }
+        },
+        "ur" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm میں Linux پروگرامز پس منظر سمیت آپ کے مقام تک رسائی حاصل کر سکتے ہیں۔"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Các chương trình Linux trong Swipterm có thể truy cập vị trí của bạn, kể cả trong nền."
+          }
+        },
+        "zh-HK" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm 中的 Linux 程式可以取用你的位置，包括在背景執行期間。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm 中的 Linux 程序可以访问你的位置信息，包括在后台运行期间。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm中的Linux程式可以取用你的位置，包括在背景執行期間。"
+          }
+        }
+      }
+    },
+    "PreciseLocation" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "يمكن لبرامج Linux في Swipterm الوصول إلى موقعك الدقيق عند طلب دقة عالية."
+          }
+        },
+        "bg" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Програмите за Linux в Swipterm имат достъп до точното Ви местоположение, когато заявите висока точност."
+          }
+        },
+        "bn" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "আপনি উচ্চ নির্ভুলতার অনুরোধ করলে Swipterm-এর Linux প্রোগ্রামগুলি আপনার সঠিক লোকেশন অ্যাক্সেস করতে পারে।"
+          }
+        },
+        "ca" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Els programes Linux del Swipterm poden accedir a la teva ubicació exacta quan sol·licites una precisió alta."
+          }
+        },
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linuxové programy ve Swipterm mají při vyžádání vysoké přesnosti přístup k vaší přesné poloze."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linux-programmer i Swipterm har adgang til din præcise lokalitet, når du anmoder om høj nøjagtighed."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linux-Programme in Swipterm können auf deinen genauen Standort zugreifen, wenn du eine hohe Genauigkeit anforderst."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Τα προγράμματα Linux στο Swipterm μπορούν να έχουν πρόσβαση στην ακριβή τοποθεσία σας όταν ζητάτε υψηλή ακρίβεια."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linux programs in Swipterm can access your precise location when you request high accuracy."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los programas de Linux de Swipterm pueden acceder a tu ubicación precisa cuando solicitas alta precisión."
+          }
+        },
+        "es-419" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los programas de Linux de Swipterm pueden acceder a tu ubicación precisa cuando solicitas alta precisión."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "برنامه‌های Linux در Swipterm هنگام درخواست دقت بالا می‌توانند به مکان دقیق شما دسترسی داشته باشند."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swiptermin Linux-ohjelmat voivat käyttää tarkkaa sijaintiasi, kun pyydät suurta tarkkuutta."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les programmes Linux de Swipterm peuvent accéder à votre position exacte lorsque vous demandez une précision élevée."
+          }
+        },
+        "fr-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les programmes Linux de Swipterm peuvent accéder à votre position exacte lorsque vous demandez une précision élevée."
+          }
+        },
+        "gu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "જ્યારે તમે ઉચ્ચ ચોકસાઈની વિનંતી કરો ત્યારે Swiptermમાંના Linux પ્રોગ્રામ તમારા ચોક્કસ સ્થાનને ઍક્સેસ કરી શકે છે."
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "תוכנות Linux ב-Swipterm יכולות לגשת למיקום המדויק שלך בעת בקשת דיוק גבוה."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "उच्च सटीकता का अनुरोध करने पर Swipterm के Linux प्रोग्राम आपकी सटीक लोकेशन ऐक्सेस कर सकते हैं।"
+          }
+        },
+        "hr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linux programi u aplikaciji Swipterm mogu pristupiti vašoj preciznoj lokaciji kada zatražite visoku preciznost."
+          }
+        },
+        "hu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A Swiptermben futó Linux-programok nagy pontosság kérésekor hozzáférhetnek a pontos helyzetéhez."
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Program Linux di Swipterm dapat mengakses lokasi tepat Anda saat Anda meminta akurasi tinggi."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I programmi Linux in Swipterm possono accedere alla tua posizione esatta quando richiedi un’elevata precisione."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SwiptermのLinuxプログラムは、高精度を指定したときに正確な位置情報にアクセスできます。"
+          }
+        },
+        "kk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Жоғары дәлдікті сұраған кезде Swipterm ішіндегі Linux бағдарламалары нақты геолокацияңызға қол жеткізе алады."
+          }
+        },
+        "kn" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ನೀವು ಹೆಚ್ಚಿನ ನಿಖರತೆಯನ್ನು ವಿನಂತಿಸಿದಾಗ Swipterm ನಲ್ಲಿರುವ Linux ಪ್ರೋಗ್ರಾಂಗಳು ನಿಮ್ಮ ನಿಖರವಾದ ಸ್ಥಳವನ್ನು ಪ್ರವೇಶಿಸಬಹುದು."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "높은 정확도를 요청하면 Swipterm의 Linux 프로그램이 사용자의 정확한 위치에 접근할 수 있습니다."
+          }
+        },
+        "lt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„Swipterm“ esančios „Linux“ programos gali pasiekti tikslius jūsų vietovės duomenis, kai prašote didelio tikslumo."
+          }
+        },
+        "ml" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "നിങ്ങൾ ഉയർന്ന കൃത്യത അഭ്യർത്ഥിക്കുമ്പോൾ Swipterm-ലെ Linux പ്രോഗ്രാമുകൾക്ക് നിങ്ങളുടെ കൃത്യമായ ലൊക്കേഷൻ ആക്സസ് ചെയ്യാൻ കഴിയും."
+          }
+        },
+        "mr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "तुम्ही उच्च अचूकतेची विनंती करता तेव्हा Swipterm मधील Linux प्रोग्राम तुमच्या अचूक स्थानाचा ॲक्सेस मिळवू शकतात."
+          }
+        },
+        "ms" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Program Linux dalam Swipterm boleh mengakses lokasi tepat anda apabila anda meminta ketepatan tinggi."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linux-programmer i Swipterm har tilgang til den nøyaktige posisjonen din når du ber om høy nøyaktighet."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linux-programma’s in Swipterm hebben toegang tot je exacte locatie wanneer je om hoge nauwkeurigheid vraagt."
+          }
+        },
+        "or" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ଆପଣ ଉଚ୍ଚ ସଠିକତା ଅନୁରୋଧ କଲେ Swipterm ରେ ଥିବା Linux ପ୍ରୋଗ୍ରାମ୍ ଆପଣଙ୍କ ସଠିକ୍ ଲୋକେସନ୍ ଆକ୍ସେସ୍ କରିପାରିବେ।"
+          }
+        },
+        "pa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ਜਦੋਂ ਤੁਸੀਂ ਉੱਚ ਸਟੀਕਤਾ ਦੀ ਬੇਨਤੀ ਕਰਦੇ ਹੋ ਤਾਂ Swipterm ਵਿਚਲੇ Linux ਪ੍ਰੋਗਰਾਮ ਤੁਹਾਡੀ ਸਟੀਕ ਲੋਕੇਸ਼ਨ ਤੱਕ ਪਹੁੰਚ ਕਰ ਸਕਦੇ ਹਨ।"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Programy systemu Linux w Swipterm mogą uzyskiwać dostęp do Twojego dokładnego położenia, gdy zażądasz wysokiej dokładności."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Os programas Linux no Swipterm podem acessar sua localização precisa quando você solicita alta precisão."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Os programas Linux no Swipterm podem aceder à sua localização exata quando solicita elevada precisão."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Programele Linux din Swipterm vă pot accesa locația precisă atunci când solicitați o precizie ridicată."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Программы Linux в Swipterm могут получать доступ к Вашей точной геопозиции при запросе высокой точности."
+          }
+        },
+        "sk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linuxové programy vo Swipterm majú pri vyžiadaní vysokej presnosti prístup k vašej presnej polohe."
+          }
+        },
+        "sl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Programi Linux v aplikaciji Swipterm lahko dostopajo do vaše natančne lokacije, ko zahtevate visoko natančnost."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linux-program i Swipterm kan få åtkomst till din exakta plats när du begär hög noggrannhet."
+          }
+        },
+        "ta" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "நீங்கள் அதிக துல்லியத்தைக் கோரும்போது Swipterm இல் உள்ள Linux நிரல்கள் உங்கள் துல்லியமான இருப்பிடத்தை அணுகலாம்."
+          }
+        },
+        "te" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "మీరు అధిక ఖచ్చితత్వాన్ని అభ్యర్థించినప్పుడు Swipterm‌లోని Linux ప్రోగ్రామ్‌లు మీ ఖచ్చితమైన లొకేషన్‌ను యాక్సెస్ చేయగలవు."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "โปรแกรม Linux ใน Swipterm สามารถเข้าถึงตำแหน่งที่ตั้งที่แม่นยำของคุณได้เมื่อคุณขอความแม่นยำสูง"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm’deki Linux programları yüksek doğruluk istediğinizde tam konumunuza erişebilir."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Програми Linux у Swipterm можуть отримувати доступ до вашої точної геопозиції, коли ви запитуєте високу точність."
+          }
+        },
+        "ur" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "جب آپ اعلیٰ درستگی کی درخواست کرتے ہیں تو Swipterm میں Linux پروگرامز آپ کے درست مقام تک رسائی حاصل کر سکتے ہیں۔"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Các chương trình Linux trong Swipterm có thể truy cập vị trí chính xác của bạn khi bạn yêu cầu độ chính xác cao."
+          }
+        },
+        "zh-HK" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "當你要求高準確度時，Swipterm 中的 Linux 程式可以取用你的精確位置。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当你请求高精度定位时，Swipterm 中的 Linux 程序可以访问你的精确位置。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "當你要求高準確度時，Swipterm中的Linux程式可以取用你的精確位置。"
           }
         }
       }

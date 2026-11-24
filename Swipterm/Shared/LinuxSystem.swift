@@ -20,6 +20,17 @@ final class LinuxSystem {
             }
             return false
         }
+
+        var runsGuest: Bool {
+            switch self {
+            case let .provisioning(provisioning):
+                provisioning.failure == nil
+            case .booting, .running:
+                true
+            case .checking, .setup, .halted, .failed:
+                false
+            }
+        }
     }
 
     struct Provisioning: Equatable {
@@ -77,7 +88,12 @@ final class LinuxSystem {
     private static let haltReasonTimeout = Duration.seconds(5)
     private static let maxBootReboots = 2
 
-    private(set) var state: State = .checking
+    private(set) var state: State = .checking {
+        didSet {
+            HostLocation.shared.updateContainerActive(state.runsGuest)
+        }
+    }
+
     private(set) var installedContainer: ContainerMetadata?
     private(set) var activeInitMode: ContainerInitMode?
     var pendingOpenURL: URL?
@@ -103,6 +119,7 @@ final class LinuxSystem {
     private var generation: UInt64 = 0
     private var activeTask: Task<Void, Never>?
     private var pendingTeardown: Task<Void, Never>?
+    private var isInBackground = false
     private var isSuspended = false
     private var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
     private var lifecycleObservers: [NSObjectProtocol] = []
@@ -985,24 +1002,44 @@ final class LinuxSystem {
                     self?.handleWillEnterForeground()
                 }
             },
+            center.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { _ in
+                MainActor.assumeIsolated {
+                    HostLocation.shared.reconcile()
+                }
+            },
         ]
+        HostLocation.shared.onBackgroundKeepAliveChange = { [weak self] in
+            guard let self else { return }
+            if HostLocation.shared.isKeepingBackgroundAlive {
+                if self.isSuspended {
+                    self.isSuspended = false
+                    self.runtime?.resume()
+                }
+            } else if self.isInBackground, self.backgroundTaskID == .invalid {
+                self.suspendRuntimeIfNeeded()
+            }
+        }
     }
 
     private func handleDidEnterBackground() {
+        isInBackground = true
         guard backgroundTaskID == .invalid else { return }
         backgroundTaskID = UIApplication.shared.beginBackgroundTask(withName: "Swipterm.LinuxRuntime") { [weak self] in
             MainActor.assumeIsolated {
                 guard let self else { return }
-                self.suspendRuntimeIfNeeded()
+                if !HostLocation.shared.isKeepingBackgroundAlive {
+                    self.suspendRuntimeIfNeeded()
+                }
                 self.endBackgroundTaskIfNeeded()
             }
         }
-        if backgroundTaskID == .invalid {
+        if backgroundTaskID == .invalid, !HostLocation.shared.isKeepingBackgroundAlive {
             suspendRuntimeIfNeeded()
         }
     }
 
     private func handleWillEnterForeground() {
+        isInBackground = false
         endBackgroundTaskIfNeeded()
         if isSuspended {
             isSuspended = false
@@ -1160,39 +1197,7 @@ final class LinuxSystem {
         do {
             try await runtime.registerDevice(at: "/dev/clipboard", handler: ClipboardDevice())
         } catch let error as LinuxError where error == .ENODEV {}
-        for command in ["open", "xdg-open"] {
-            try await runtime.registerCommand(named: command) { invocation in
-                try await Self.handleOpenCommand(invocation, name: command)
-            }
-        }
-    }
-
-    private nonisolated static func handleOpenCommand(_ invocation: HostCommandInvocation, name: String) async throws -> Int32 {
-        var target: String?
-        var parsingOptions = true
-        for argument in invocation.arguments {
-            if parsingOptions, argument == "--" {
-                parsingOptions = false
-                continue
-            }
-            if parsingOptions, argument.hasPrefix("-") {
-                continue
-            }
-            target = argument
-            break
-        }
-        guard let target else {
-            try await invocation.standardError.write(Data("usage: \(name) <url>\n".utf8))
-            return 2
-        }
-        guard let url = URL(string: target), let scheme = url.scheme, !scheme.isEmpty else {
-            try await invocation.standardError.write(Data("\(name): invalid URL: \(target)\n".utf8))
-            return 1
-        }
-        await MainActor.run {
-            LinuxSystem.shared.pendingOpenURL = url
-        }
-        return 0
+        try await HostCommands.register(on: runtime)
     }
 }
 
