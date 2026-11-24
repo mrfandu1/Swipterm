@@ -6,181 +6,200 @@ import UIKit
 struct OpenURLPromptModifier: ViewModifier {
     private let system = LinuxSystem.shared
 
-    @Environment(\.openURL) private var openURL
-    @State private var webURL: URL?
-    @State private var qrCodeImage: UIImage?
-    @State private var isShowingQRCode = false
+    @State private var pendingWebURL: SheetURL?
+    @State private var webURL: SheetURL?
 
     func body(content: Content) -> some View {
         content
-            .alert("Open URL", isPresented: Binding {
-                system.pendingOpenURL != nil && !isShowingQRCode
-            } set: { isPresented in
-                if !isPresented, !isShowingQRCode {
+            .sheet(
+                item: Binding {
+                    system.pendingOpenURL.map(SheetURL.init)
+                } set: { item in
+                    if item == nil {
+                        system.pendingOpenURL = nil
+                    }
+                },
+                onDismiss: {
+                    if let pendingWebURL {
+                        webURL = pendingWebURL
+                        self.pendingWebURL = nil
+                    }
+                }
+            ) { item in
+                OpenURLSheet(url: item.url) { url in
+                    pendingWebURL = SheetURL(url: url)
                     system.pendingOpenURL = nil
                 }
-            }, presenting: system.pendingOpenURL) { url in
-                let isWebURL = url.scheme?.lowercased() == "http" || url.scheme?.lowercased() == "https"
-                Button("Open") {
-                    if isWebURL {
-                        webURL = url
-                    } else {
-                        openURL(url)
-                    }
-                }
-                .keyboardShortcut(.defaultAction)
-                if isWebURL {
-                    Button("Open in Safari") {
-                        openURL(url)
-                    }
-                }
-                Button("Copy URL") {
-                    UIPasteboard.general.string = url.absoluteString
-                }
-                Button("Show QR Code") {
-                    system.pendingOpenURL = url
-                    qrCodeImage = Self.qrCode(for: url)
-                    isShowingQRCode = true
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: { url in
-                Text(verbatim: Self.message(for: url))
             }
-            .sheet(isPresented: Binding {
-                webURL != nil
-            } set: { isPresented in
-                if !isPresented {
-                    webURL = nil
-                }
-            }) {
-                if let webURL {
-                    SafariView(url: webURL)
-                        .ignoresSafeArea()
-                }
+            .sheet(item: $webURL) { item in
+                SafariView(url: item.url)
+                    .ignoresSafeArea()
             }
-            .overlay {
-                ZStack {
-                    if isShowingQRCode, let qrCodeImage {
-                        Color.black.opacity(0.3)
-                            .ignoresSafeArea()
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                isShowingQRCode = false
-                            }
-                            .transition(.opacity)
-
-                        URLQRCodePopup(qrCode: qrCodeImage) {
-                            isShowingQRCode = false
-                        }
-                        .padding(20)
-                        .transition(.scale(scale: 1.06).combined(with: .opacity))
-                    }
-                }
-                .allowsHitTesting(isShowingQRCode)
-                .animation(.easeOut(duration: 0.2), value: isShowingQRCode)
-            }
-            .onChange(of: system.pendingOpenURL) { _, url in
-                if url == nil {
-                    isShowingQRCode = false
-                }
-            }
-    }
-
-    private static func qrCode(for url: URL) -> UIImage? {
-        let filter = CIFilter.qrCodeGenerator()
-        filter.message = Data(url.absoluteString.utf8)
-        guard let image = filter.outputImage,
-              let cgImage = CIContext().createCGImage(image, from: image.extent)
-        else {
-            return nil
-        }
-        return UIImage(cgImage: cgImage)
-    }
-
-    /// UIAlertController ignores lineLimit in the message, and lays it out at least 238 points wide
-    /// (a 270-point alert with 16-point insets) in a font no larger than subheadline.
-    private static func message(for url: URL) -> String {
-        let text = url.absoluteString
-        let font = UIFont.preferredFont(forTextStyle: .subheadline)
-        func fits(_ candidate: String) -> Bool {
-            let bounds = (candidate as NSString).boundingRect(
-                with: CGSize(width: 238, height: CGFloat.greatestFiniteMagnitude),
-                options: .usesLineFragmentOrigin,
-                attributes: [.font: font],
-                context: nil
-            )
-            return (bounds.height / font.lineHeight).rounded() <= 2
-        }
-        guard !fits(text) else { return text }
-        var low = 0
-        var high = text.count
-        while low < high {
-            let middle = (low + high + 1) / 2
-            if fits(text.prefix(middle) + "…") {
-                low = middle
-            } else {
-                high = middle - 1
-            }
-        }
-        return text.prefix(low) + "…"
     }
 }
 
-private struct URLQRCodePopup: View {
-    let qrCode: UIImage
-    let onDismiss: () -> Void
+private struct SheetURL: Identifiable {
+    let url: URL
 
-    var body: some View {
-        let content = VStack(spacing: 14) {
-            Text("QR Code")
-                .font(.headline)
-            Image(uiImage: qrCode)
-                .interpolation(.none)
-                .resizable()
-                .aspectRatio(1, contentMode: .fit)
-                .padding(12)
-                .background(.white, in: RoundedRectangle(cornerRadius: innerCornerRadius, style: .continuous))
-        }
-        .padding(.top, 20)
-        .padding([.horizontal, .bottom], 16)
-        .frame(maxWidth: 420)
+    var id: String {
+        url.absoluteString
+    }
+}
 
-        Group {
-            if #available(iOS 26.0, *) {
-                content
-                    .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 34, style: .continuous))
-                    .contentShape(RoundedRectangle(cornerRadius: 34, style: .continuous))
-            } else {
-                content
-                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
-                    }
-                    .shadow(color: .black.opacity(0.2), radius: 20, y: 8)
-                    .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            }
-        }
-        .onTapGesture {}
-        .background {
-            Button(action: onDismiss) {
-                EmptyView()
-            }
-            .keyboardShortcut(.cancelAction)
-            .opacity(0)
-            .frame(width: 0, height: 0)
-            .accessibilityHidden(true)
-        }
-        .accessibilityAddTraits(.isModal)
-        .accessibilityAction(.escape, onDismiss)
+private struct OpenURLSheet: View {
+    private enum Route: Hashable {
+        case qrCode
     }
 
-    private var innerCornerRadius: CGFloat {
-        if #available(iOS 26.0, *) {
-            18
-        } else {
-            10
+    let url: URL
+    let onOpenInAppWeb: (URL) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
+    @State private var path: [Route] = []
+    @State private var formHeight: CGFloat?
+    @State private var navBarHeight: CGFloat = 56
+    @State private var sheetWidth: CGFloat = 0
+
+    private var isWebURL: Bool {
+        switch url.scheme?.lowercased() {
+        case "http", "https":
+            true
+        default:
+            false
         }
+    }
+
+    private var activeDetents: Set<PresentationDetent> {
+        if !path.isEmpty, sheetWidth > 0 {
+            return [.height((navBarHeight + min(sheetWidth, 420)).rounded(.up))]
+        }
+        if let formHeight {
+            return [.height(formHeight)]
+        }
+        return [.medium]
+    }
+
+    var body: some View {
+        NavigationStack(path: $path) {
+            Form {
+                Section {
+                    Text(verbatim: url.absoluteString)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+
+                Section("Actions") {
+                    Button {
+                        if isWebURL {
+                            onOpenInAppWeb(url)
+                        } else {
+                            dismiss()
+                            openURL(url)
+                        }
+                    } label: {
+                        Label("Open", systemImage: "globe")
+                    }
+
+                    if isWebURL {
+                        Button {
+                            dismiss()
+                            openURL(url)
+                        } label: {
+                            Label("Open in Safari", systemImage: "safari")
+                        }
+                    }
+
+                    NavigationLink(value: Route.qrCode) {
+                        Label("QR Code", systemImage: "qrcode")
+                    }
+                }
+            }
+            .contentMargins(.top, 0, for: .scrollContent)
+            .listSectionSpacing(12)
+            .scrollBounceBehavior(.basedOnSize)
+            .modifier(FormHeightReaderModifier(formHeight: $formHeight, navBarHeight: $navBarHeight))
+            .navigationTitle("Open URL")
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(for: Route.self) { route in
+                switch route {
+                case .qrCode:
+                    URLQRCodeView(url: url)
+                }
+            }
+        }
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.size.width
+        } action: { newWidth in
+            sheetWidth = newWidth
+        }
+        .presentationDetents(activeDetents)
+        .presentationDragIndicator(.visible)
+    }
+}
+
+private struct FormHeightReaderModifier: ViewModifier {
+    @Binding var formHeight: CGFloat?
+    @Binding var navBarHeight: CGFloat
+
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content
+                .onScrollGeometryChange(for: CGSize.self) { geometry in
+                    CGSize(
+                        width: geometry.contentInsets.top,
+                        height: geometry.contentSize.height + geometry.contentInsets.top
+                    )
+                } action: { _, metrics in
+                    guard metrics.height > 0 else { return }
+                    let topInset = metrics.width.rounded(.up)
+                    if topInset > 0, abs(navBarHeight - topInset) > 1 {
+                        navBarHeight = topInset
+                    }
+                    let totalHeight = metrics.height.rounded(.up)
+                    if abs((formHeight ?? 0) - totalHeight) > 1 {
+                        formHeight = totalHeight
+                    }
+                }
+        } else {
+            content
+        }
+    }
+}
+
+private struct URLQRCodeView: View {
+    private static let ciContext = CIContext()
+
+    private let qrCode: UIImage?
+
+    init(url: URL) {
+        let filter = CIFilter.qrCodeGenerator()
+        filter.message = Data(url.absoluteString.utf8)
+        if let image = filter.outputImage,
+           let cgImage = Self.ciContext.createCGImage(image, from: image.extent)
+        {
+            qrCode = UIImage(cgImage: cgImage)
+        } else {
+            qrCode = nil
+        }
+    }
+
+    var body: some View {
+        Group {
+            if let qrCode {
+                Image(uiImage: qrCode)
+                    .interpolation(.none)
+                    .resizable()
+                    .aspectRatio(1, contentMode: .fit)
+                    .padding(16)
+                    .background(.white, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    .padding(24)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .navigationTitle("QR Code")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
