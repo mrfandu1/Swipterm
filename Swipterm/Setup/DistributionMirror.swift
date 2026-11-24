@@ -1,4 +1,5 @@
 import Foundation
+import SwiptermKit
 
 nonisolated enum MirrorRepository: String, Codable, Hashable, Sendable {
     case lxc
@@ -663,33 +664,23 @@ nonisolated enum MirrorProbe {
         timeZone: .gmt
     )
 
-    private static let session: URLSession = {
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.urlCache = nil
-        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
-        configuration.timeoutIntervalForRequest = 4
-        configuration.timeoutIntervalForResource = 6
-        return URLSession(configuration: configuration)
-    }()
-
     static func probe(_ url: URL) async -> Response? {
-        var request = URLRequest(url: url)
-        request.setValue("bytes=0-0", forHTTPHeaderField: "Range")
-        request.setValue("Swipterm/1.0", forHTTPHeaderField: "User-Agent")
         let start = ContinuousClock.now
-        guard let (bytes, response) = try? await session.bytes(for: request) else {
+        guard let response = try? await HTTPClient.response(for: HTTPRequest(
+            url: url,
+            headers: ["Range": "bytes=0-0"],
+            timeout: .seconds(4)
+        )) else {
             return nil
         }
         let latency = start.duration(to: .now)
-        bytes.task.cancel()
-        guard let http = response as? HTTPURLResponse,
-              http.statusCode == 200 || http.statusCode == 206,
-              http.mimeType?.lowercased() != "text/html"
+        guard response.statusCode == 200 || response.statusCode == 206,
+              response.value(forHTTPHeaderField: "Content-Type")?.lowercased().hasPrefix("text/html") != true
         else {
             return nil
         }
         return Response(
-            lastModified: http.value(forHTTPHeaderField: "Last-Modified").flatMap { try? Date($0, strategy: httpDate) },
+            lastModified: response.value(forHTTPHeaderField: "Last-Modified").flatMap { try? Date($0, strategy: httpDate) },
             latency: latency
         )
     }

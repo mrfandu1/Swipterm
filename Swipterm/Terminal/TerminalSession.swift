@@ -39,7 +39,6 @@ final class TerminalSession: Identifiable {
     @ObservationIgnored private let startedAt = Date()
     @ObservationIgnored private var startTask: Task<Void, Never>?
     @ObservationIgnored private var isClosed = false
-    @ObservationIgnored private var notificationAuthorizationRequested = false
     @ObservationIgnored private var cancellables: Set<AnyCancellable> = []
 
     init(number: Int) {
@@ -101,6 +100,16 @@ final class TerminalSession: Identifiable {
     }
 
     func start() async {
+        #if SWIPTERM_STORE_SCREENSHOTS && targetEnvironment(simulator)
+            if StoreScreenshot.current == .terminal {
+                session.receive(StoreScreenshot.transcript(username: SetupView.fallbackUsername))
+                phase = .running
+                hasVisibleOutput = true
+                surfaceView.accessibilityIdentifier = "store-screenshot-terminal"
+                surfaceView.isAccessibilityElement = true
+                return
+            }
+        #endif
         let session = session
         let relay = relay
         let firstPtyOutput = OnceFlag()
@@ -219,12 +228,8 @@ final class TerminalSession: Identifiable {
         content.body = body
         content.sound = .default
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
-        let requestAuthorization = !notificationAuthorizationRequested
-        notificationAuthorizationRequested = true
         Task {
-            if requestAuthorization {
-                guard (try? await center.requestAuthorization(options: [.alert, .sound])) == true else { return }
-            }
+            guard (try? await center.requestAuthorization(options: [.alert, .sound])) == true else { return }
             try? await center.add(request)
         }
     }

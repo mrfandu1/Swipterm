@@ -122,6 +122,12 @@ final class LinuxSystem {
     func bootstrap() {
         guard !bootstrapped else { return }
         bootstrapped = true
+        #if SWIPTERM_STORE_SCREENSHOTS && targetEnvironment(simulator)
+            if let screenshot = StoreScreenshot.current {
+                state = screenshot == .setup ? .setup : .running
+                return
+            }
+        #endif
         requestLocalNetworkAuthorizationIfNeeded()
 
         let generation = beginOperation()
@@ -1023,8 +1029,6 @@ final class LinuxSystem {
         if isSuspended {
             isSuspended = false
             runtime?.resume()
-        } else {
-            try? runtime?.syncDNS()
         }
     }
 

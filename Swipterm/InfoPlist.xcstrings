@@ -1,0 +1,52 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "CFBundleDisplayName" : {
+      "comment" : "Bundle display name",
+      "extractionState" : "extracted_with_value",
+      "shouldTranslate" : false
+    },
+    "CFBundleName" : {
+      "comment" : "Bundle name",
+      "extractionState" : "extracted_with_value",
+      "shouldTranslate" : false
+    },
+    "NSLocalNetworkUsageDescription" : {
+      "comment" : "Privacy - Local Network Usage Description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Linux programs in Swipterm can connect to devices on your local network and accept connections from them."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "برنامه‌های Linux در Swipterm می‌توانند به دستگاه‌های شبکهٔ محلی شما متصل شوند و اتصال‌های آن‌ها را بپذیرند."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Программы Linux в Swipterm могут подключаться к устройствам в вашей локальной сети и принимать от них подключения."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm 中的 Linux 程序可以连接本地网络上的设备，也可以接受这些设备的连接。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm 中的 Linux 程式可以連線至區域網路上的裝置，也可以接受這些裝置的連線。"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

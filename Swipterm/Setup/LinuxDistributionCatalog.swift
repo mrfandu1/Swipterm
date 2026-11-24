@@ -180,6 +180,15 @@ final class LinuxDistributionCatalogStore {
 
     private var activeTask: Task<Void, Never>?
 
+    #if SWIPTERM_STORE_SCREENSHOTS && targetEnvironment(simulator)
+        private init() {
+            if StoreScreenshot.current == .setup {
+                releasesByDistribution = [.alpine: [StoreScreenshot.alpineRelease]]
+                loadState = .loaded
+            }
+        }
+    #endif
+
     func releases(for distribution: LinuxDistribution) -> [LinuxReleaseImage] {
         releasesByDistribution[distribution] ?? []
     }
@@ -290,15 +299,9 @@ private nonisolated enum LinuxDistributionCatalogClient {
     }
 
     private static func fetch(_ url: URL) async throws -> Data {
-        var request = URLRequest(url: url)
-        request.cachePolicy = .reloadIgnoringLocalCacheData
-        request.timeoutInterval = 30
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse else {
-            throw URLError(.badServerResponse)
-        }
-        guard (200 ..< 300).contains(http.statusCode) else {
-            throw HTTPError.unexpectedStatus(http.statusCode)
+        let (data, response) = try await HTTPClient.data(for: HTTPRequest(url: url))
+        guard (200 ..< 300).contains(response.statusCode) else {
+            throw HTTPError.unexpectedStatus(response.statusCode)
         }
         return data
     }

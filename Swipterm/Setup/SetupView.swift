@@ -19,7 +19,6 @@ struct SetupDraft {
     var customRemoteURLText = ""
     var usesRootUser = false
     var username = ""
-    var lastAutoUsername = ""
     var password = ""
     var software = ContainerSoftware(shell: .bash)
     var ssh = SetupSSH()
@@ -39,7 +38,6 @@ struct SetupView: View {
     private let system = LinuxSystem.shared
 
     @State private var showFileImporter = false
-    @State private var localHostName = LocalHostName()
     @State private var errorMessage: String?
     @State private var catalogFailure: String?
     @FocusState private var focusedField: Field?
@@ -54,6 +52,9 @@ struct SetupView: View {
                         .multilineTextAlignment(.trailing)
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
+                        #if SWIPTERM_STORE_SCREENSHOTS && targetEnvironment(simulator)
+                            .accessibilityIdentifier("store-screenshot-setup")
+                        #endif
                 }
 
                 Picker("Distribution", selection: clearingFocus($draft.source)) {
@@ -199,16 +200,6 @@ struct SetupView: View {
             await catalog.loadIfNeeded(mirror: selectedMirror)
             syncSelectedRelease()
         }
-        .onAppear {
-            applyAutoUsername(Self.suggestedUsername(fromHostName: localHostName.name))
-            localHostName.start()
-        }
-        .onDisappear {
-            localHostName.stop()
-        }
-        .onChange(of: localHostName.name) { _, name in
-            applyAutoUsername(Self.suggestedUsername(fromHostName: name))
-        }
         .onChange(of: draft.source) { _, newSource in
             switch newSource {
             case let .distribution(distribution):
@@ -309,7 +300,6 @@ struct SetupView: View {
     }
 
     private var canInstall: Bool {
-        guard draft.usesRootUser || !draft.username.isEmpty else { return false }
         switch draft.source {
         case .distribution:
             return selectedRelease != nil
@@ -334,13 +324,6 @@ struct SetupView: View {
         if trimmed.isEmpty || draft.containerName == draft.lastAutoContainerName {
             draft.containerName = suggested
             draft.lastAutoContainerName = suggested
-        }
-    }
-
-    private func applyAutoUsername(_ suggested: String) {
-        if draft.username.isEmpty || draft.username == draft.lastAutoUsername {
-            draft.username = suggested
-            draft.lastAutoUsername = suggested
         }
     }
 
@@ -402,7 +385,7 @@ struct SetupView: View {
             source: installSource,
             containerName: Self.sanitizedContainerName(draft.containerName),
             initMode: effectiveInitMode,
-            user: draft.usesRootUser ? "root" : draft.username,
+            user: draft.usesRootUser ? "root" : draft.username.isEmpty ? Self.fallbackUsername : draft.username,
             password: draft.password.isEmpty ? nil : draft.password,
             software: software
         ))
@@ -418,7 +401,7 @@ struct SetupView: View {
         return types
     }
 
-    private static var fallbackUsername: String {
+    static var fallbackUsername: String {
         switch UIDevice.current.userInterfaceIdiom {
         case .phone: "iphone"
         case .pad: "ipad"
@@ -428,28 +411,6 @@ struct SetupView: View {
 
     private static func isValidUsername(_ name: String) -> Bool {
         name != "root" && name.wholeMatch(of: /[a-z_][a-z0-9_-]{0,31}/) != nil
-    }
-
-    private static func suggestedUsername(fromHostName hostName: String?) -> String {
-        var name = hostName?.lowercased() ?? ""
-        while name.hasSuffix(".") {
-            name.removeLast()
-        }
-        if name.hasSuffix(".local") {
-            name.removeLast(".local".count)
-        }
-        let allowed = Set("abcdefghijklmnopqrstuvwxyz0123456789_-")
-        var sanitized = ""
-        for character in name {
-            if allowed.contains(character) {
-                sanitized.append(character)
-            } else if sanitized.last != "-" {
-                sanitized.append("-")
-            }
-        }
-        let leading = sanitized.drop { !$0.isLetter && $0 != "_" }
-        let trimmed = String(leading.prefix(32)).trimmingCharacters(in: CharacterSet(charactersIn: "-"))
-        return isValidUsername(trimmed) ? trimmed : fallbackUsername
     }
 
     private static func suggestedContainerName(fromArchive fileName: String) -> String {

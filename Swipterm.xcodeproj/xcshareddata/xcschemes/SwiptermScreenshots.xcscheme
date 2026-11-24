@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Scheme LastUpgradeVersion="2720" version="1.7">
+   <BuildAction parallelizeBuildables="YES" buildImplicitDependencies="YES">
+      <BuildActionEntries>
+         <BuildActionEntry
+            buildForTesting="YES"
+            buildForRunning="NO"
+            buildForProfiling="NO"
+            buildForArchiving="NO"
+            buildForAnalyzing="NO">
+            <BuildableReference
+               BuildableIdentifier="primary"
+               BlueprintIdentifier="5D0000000000000000000501"
+               BuildableName="Swipterm.app"
+               BlueprintName="Swipterm"
+               ReferencedContainer="container:Swipterm.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
+      </BuildActionEntries>
+   </BuildAction>
+   <TestAction
+      buildConfiguration="Debug"
+      selectedDebuggerIdentifier="Xcode.DebuggerFoundation.Debugger.LLDB"
+      selectedLauncherIdentifier="Xcode.DebuggerFoundation.Launcher.LLDB"
+      shouldUseLaunchSchemeArgsEnv="NO"
+      shouldAutocreateTestPlan="YES">
+      <Testables>
+         <TestableReference skipped="NO" parallelizable="NO">
+            <BuildableReference
+               BuildableIdentifier="primary"
+               BlueprintIdentifier="5D0000000000000000000502"
+               BuildableName="SwiptermScreenshotTests.xctest"
+               BlueprintName="SwiptermScreenshotTests"
+               ReferencedContainer="container:Swipterm.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+      </Testables>
+   </TestAction>
+</Scheme>

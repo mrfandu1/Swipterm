@@ -8,6 +8,9 @@ build_ios:
 build_ios_simulator:
 	xcodebuild build -skipMacroValidation -derivedDataPath build/DerivedData $(XCODEBUILD_FLAGS) -scheme Swipterm -configuration Debug -destination 'generic/platform=iOS Simulator' ARCHS=arm64 | xcbeautify | grep -A 10 -e "Build Succeeded" -e "BUILD FAILED" -e "❌"
 
+screenshots_ios:
+	go run ./internal/cmd/screenshots $(SCREENSHOT_FLAGS)
+
 build_ios_ipa: archive_ios_ipa
 
 archive_ios_ipa:
@@ -37,4 +40,4 @@ fmt:
 	swiftformat Swipterm
 	go fmt ./...
 
-.PHONY: build_ios build_ios_simulator build_ios_ipa archive_ios_ipa altstore_icon altstore_source fmt
+.PHONY: build_ios build_ios_simulator screenshots_ios build_ios_ipa archive_ios_ipa altstore_icon altstore_source fmt

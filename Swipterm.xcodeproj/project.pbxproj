@@ -13,27 +13,30 @@
 		5D0000000000000000000204 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 5D0000000000000000000A07 /* GRDB */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		5D0000000000000000000801 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 5D0000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5D0000000000000000000501;
+			remoteInfo = Swipterm;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		5D0000000000000000000101 /* Swipterm.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Swipterm.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		5D0000000000000000000102 /* SwiptermScreenshotTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SwiptermScreenshotTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
-
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		3A04BD0930B471BB00C2614F /* Exceptions for "Swipterm" folder in "Swipterm" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = 5D0000000000000000000501 /* Swipterm */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		5D0000000000000000000301 /* Swipterm */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				3A04BD0930B471BB00C2614F /* Exceptions for "Swipterm" folder in "Swipterm" target */,
-			);
 			path = Swipterm;
+			sourceTree = "<group>";
+		};
+		5D0000000000000000000302 /* SwiptermScreenshotTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = SwiptermScreenshotTests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -50,6 +53,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		5D0000000000000000000405 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -57,6 +67,7 @@
 			isa = PBXGroup;
 			children = (
 				5D0000000000000000000301 /* Swipterm */,
+				5D0000000000000000000302 /* SwiptermScreenshotTests */,
 				5D0000000000000000000013 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -65,6 +76,7 @@
 			isa = PBXGroup;
 			children = (
 				5D0000000000000000000101 /* Swipterm.app */,
+				5D0000000000000000000102 /* SwiptermScreenshotTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -98,6 +110,27 @@
 			productReference = 5D0000000000000000000101 /* Swipterm.app */;
 			productType = "com.apple.product-type.application";
 		};
+		5D0000000000000000000502 /* SwiptermScreenshotTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5D0000000000000000000703 /* Build configuration list for PBXNativeTarget "SwiptermScreenshotTests" */;
+			buildPhases = (
+				5D0000000000000000000404 /* Sources */,
+				5D0000000000000000000405 /* Frameworks */,
+				5D0000000000000000000406 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				5D0000000000000000000802 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				5D0000000000000000000302 /* SwiptermScreenshotTests */,
+			);
+			name = SwiptermScreenshotTests;
+			productName = SwiptermScreenshotTests;
+			productReference = 5D0000000000000000000102 /* SwiptermScreenshotTests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -110,6 +143,10 @@
 				TargetAttributes = {
 					5D0000000000000000000501 = {
 						CreatedOnToolsVersion = 27.2;
+					};
+					5D0000000000000000000502 = {
+						CreatedOnToolsVersion = 27.2;
+						TestTargetID = 5D0000000000000000000501;
 					};
 				};
 			};
@@ -137,12 +174,20 @@
 			projectRoot = "";
 			targets = (
 				5D0000000000000000000501 /* Swipterm */,
+				5D0000000000000000000502 /* SwiptermScreenshotTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		5D0000000000000000000403 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5D0000000000000000000406 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -159,7 +204,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		5D0000000000000000000404 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		5D0000000000000000000802 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 5D0000000000000000000501 /* Swipterm */;
+			targetProxy = 5D0000000000000000000801 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		5D0000000000000000000601 /* Debug */ = {
@@ -293,10 +353,10 @@
 				ENABLE_PREVIEWS = YES;
 				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = Swipterm/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Swipterm;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Linux programs in Swipterm can connect to devices on your local network and accept connections from them.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -333,10 +393,10 @@
 				ENABLE_PREVIEWS = YES;
 				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = Swipterm/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Swipterm;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Linux programs in Swipterm can connect to devices on your local network and accept connections from them.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -361,6 +421,36 @@
 			};
 			name = Release;
 		};
+		5D0000000000000000000605 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = P8XK3KHB48;
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = io.nekohasekai.swipterm.screenshots;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Swipterm;
+			};
+			name = Debug;
+		};
+		5D0000000000000000000606 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = P8XK3KHB48;
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = io.nekohasekai.swipterm.screenshots;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Swipterm;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -382,6 +472,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		5D0000000000000000000703 /* Build configuration list for PBXNativeTarget "SwiptermScreenshotTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5D0000000000000000000605 /* Debug */,
+				5D0000000000000000000606 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
@@ -390,7 +489,7 @@
 			repositoryURL = "https://github.com/Lakr233/libghostty-spm";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 2.2.2026111701;
+				minimumVersion = 2.2.2026112303;
 			};
 		};
 		5D0000000000000000000A04 /* XCRemoteSwiftPackageReference "SwiptermKit" */ = {
