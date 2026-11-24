@@ -28,9 +28,23 @@
 		5D0000000000000000000102 /* SwiptermScreenshotTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SwiptermScreenshotTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		5D0000000000000000000311 /* Exceptions for "Swipterm" folder in "Swipterm" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Export.plist,
+				Upload.plist,
+			);
+			target = 5D0000000000000000000501 /* Swipterm */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		5D0000000000000000000301 /* Swipterm */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				5D0000000000000000000311 /* Exceptions for "Swipterm" folder in "Swipterm" target */,
+			);
 			path = Swipterm;
 			sourceTree = "<group>";
 		};

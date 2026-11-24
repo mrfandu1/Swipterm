@@ -11,14 +11,27 @@ build_ios_simulator:
 screenshots_ios:
 	go run ./internal/cmd/screenshots $(SCREENSHOT_FLAGS)
 
+release_ios: archive_ios upload_ios
+
+archive_ios:
+	rm -rf build/Swipterm-iOS.xcarchive
+	xcodebuild archive -skipMacroValidation -derivedDataPath build/DerivedData $(XCODEBUILD_FLAGS) -scheme Swipterm -configuration Release -destination 'generic/platform=iOS' -archivePath build/Swipterm-iOS.xcarchive | xcbeautify
+
+upload_ios:
+	xcodebuild -exportArchive -archivePath build/Swipterm-iOS.xcarchive -exportOptionsPlist Swipterm/Upload.plist
+
+export_ios:
+	rm -rf build/Swipterm-iOS
+	xcodebuild -exportArchive -archivePath build/Swipterm-iOS.xcarchive -exportOptionsPlist Swipterm/Export.plist -exportPath build/Swipterm-iOS
+
 build_ios_ipa: archive_ios_ipa
 
 archive_ios_ipa:
-	rm -rf build/Swipterm-iOS.xcarchive build/Payload build/Swipterm.ipa
-	xcodebuild archive -skipMacroValidation -derivedDataPath build/DerivedData $(XCODEBUILD_FLAGS) -scheme Swipterm -configuration Release -destination 'generic/platform=iOS' -archivePath build/Swipterm-iOS.xcarchive \
+	rm -rf build/Swipterm-Sideload.xcarchive build/Payload build/Swipterm.ipa
+	xcodebuild archive -skipMacroValidation -derivedDataPath build/DerivedData $(XCODEBUILD_FLAGS) -scheme Swipterm -configuration Release -destination 'generic/platform=iOS' -archivePath build/Swipterm-Sideload.xcarchive \
 		CODE_SIGNING_ALLOWED=NO | xcbeautify
 	mkdir build/Payload
-	cp -R build/Swipterm-iOS.xcarchive/Products/Applications/Swipterm.app build/Payload/
+	cp -R build/Swipterm-Sideload.xcarchive/Products/Applications/Swipterm.app build/Payload/
 	codesign --force --sign - --entitlements Swipterm/Swipterm.entitlements build/Payload/Swipterm.app
 	cd build && zip -qry Swipterm.ipa Payload
 	rm -rf build/Payload
@@ -40,4 +53,4 @@ fmt:
 	swiftformat Swipterm
 	go fmt ./...
 
-.PHONY: build_ios build_ios_simulator screenshots_ios build_ios_ipa archive_ios_ipa altstore_icon altstore_source fmt
+.PHONY: build_ios build_ios_simulator screenshots_ios release_ios archive_ios upload_ios export_ios build_ios_ipa archive_ios_ipa altstore_icon altstore_source fmt

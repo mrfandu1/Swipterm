@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -29,7 +30,7 @@ var transientStatusCodes = []int{
 }
 
 var appPaths = []string{
-	".", ":!.github/workflows", ":!.github/*.sh", ":!*.md", ":!assets/readme", ":!LICENSE", ":!.gitignore", ":!internal/cmd/ci/version.go",
+	".", ":!.github/workflows", ":!.github/*.sh", ":!*.md", ":!assets/readme", ":!LICENSE", ":!.gitignore", ":!internal/cmd/ci/appstore.go", ":!internal/cmd/ci/version.go",
 }
 
 type release struct {
@@ -38,7 +39,7 @@ type release struct {
 	Prerelease bool   `json:"prerelease"`
 }
 
-func calculateVersion() {
+func calculateVersion(ctx context.Context) {
 	repository := os.Getenv("GITHUB_REPOSITORY")
 	project, err := os.ReadFile("Swipterm.xcodeproj/project.pbxproj")
 	if err != nil {
@@ -46,20 +47,33 @@ func calculateVersion() {
 	}
 	version := string(marketingVersion.FindSubmatch(project)[1])
 	var stable []int
-	for _, release := range listReleases(repository) {
-		if release.Draft || release.Prerelease || !stableTag.MatchString(release.TagName) {
-			continue
-		}
-		if current := parseVersion(release.TagName[1:]); slices.Compare(current, stable) > 0 {
-			stable = current
+	if repository != "" {
+		for _, release := range listReleases(repository) {
+			if release.Draft || release.Prerelease || !stableTag.MatchString(release.TagName) {
+				continue
+			}
+			if current := parseVersion(release.TagName[1:]); slices.Compare(current, stable) > 0 {
+				stable = current
+			}
 		}
 	}
+	if (os.Getenv("ASC_KEY") != "" || os.Getenv("ASC_KEY_PATH") != "") && os.Getenv("ASC_KEY_ID") != "" {
+		for _, releasedVersion := range releasedAppStoreVersions(ctx) {
+			if current := parseVersion(releasedVersion); slices.Compare(current, stable) > 0 {
+				stable = current
+			}
+		}
+	}
+	parsedVersion := parseVersion(version)
+	version = fmt.Sprintf("%d.%d.%d", parsedVersion[0], parsedVersion[1], parsedVersion[2])
 	if stable != nil {
 		stable[2]++
-		if slices.Compare(stable, parseVersion(version)) > 0 {
+		if slices.Compare(stable, parsedVersion) > 0 {
+			parsedVersion = stable
 			version = fmt.Sprintf("%d.%d.%d", stable[0], stable[1], stable[2])
 		}
 	}
+	testflightVersion := fmt.Sprintf("%d.%d.100", parsedVersion[0], parsedVersion[1])
 	previous := "0"
 	appChanged := true
 	if fetchNightly() {
@@ -68,29 +82,33 @@ func calculateVersion() {
 			log.Fatal(err)
 		}
 		previous = strings.TrimSpace(string(output))
-		released := nightlyMetadata(repository)
-		if os.Getenv("GITHUB_EVENT_NAME") == "push" && released.Version == version && released.Build.String() == previous &&
-			exec.Command("git", append([]string{"diff", "--quiet", "nightly^{commit}", "HEAD", "--"}, appPaths...)...).Run() == nil {
-			appChanged = false
+		if repository != "" {
+			released := nightlyMetadata(repository)
+			if os.Getenv("GITHUB_EVENT_NAME") == "push" && released.Version == version && released.Build.String() == previous &&
+				exec.Command("git", append([]string{"diff", "--quiet", "nightly^{commit}", "HEAD", "--"}, appPaths...)...).Run() == nil {
+				appChanged = false
+			}
 		}
 	}
 	buildNumber, err := strconv.Atoi(previous)
 	if err != nil {
 		log.Fatal(err)
 	}
-	outputs := fmt.Sprintf("app_changed=%t\nversion=%s\nbuild_number=%d\n", appChanged, version, buildNumber+1)
+	outputs := fmt.Sprintf("app_changed=%t\nversion=%s\ntestflight_version=%s\nbuild_number=%d\n", appChanged, version, testflightVersion, buildNumber+1)
 	fmt.Print(outputs)
-	file, err := os.OpenFile(os.Getenv("GITHUB_OUTPUT"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-	if err != nil {
-		log.Fatal(err)
-	}
-	_, err = file.WriteString(outputs)
-	if err != nil {
-		log.Fatal(err)
-	}
-	err = file.Close()
-	if err != nil {
-		log.Fatal(err)
+	if outputPath := os.Getenv("GITHUB_OUTPUT"); outputPath != "" {
+		file, err := os.OpenFile(outputPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+		if err != nil {
+			log.Fatal(err)
+		}
+		_, err = file.WriteString(outputs)
+		if err != nil {
+			log.Fatal(err)
+		}
+		err = file.Close()
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 }
 
@@ -102,6 +120,9 @@ func parseVersion(version string) []int {
 			log.Fatal("invalid version: ", version)
 		}
 		parts = append(parts, number)
+	}
+	for len(parts) < 3 {
+		parts = append(parts, 0)
 	}
 	return parts
 }
@@ -147,7 +168,7 @@ func listReleases(repository string) []release {
 func fetchNightly() bool {
 	for {
 		var stderr bytes.Buffer
-		command := exec.Command("git", "fetch", "--depth=1", "origin", "tag", "nightly")
+		command := exec.Command("git", "fetch", "--depth=1", "-f", "origin", "tag", "nightly")
 		command.Stdout = os.Stdout
 		command.Stderr = io.MultiWriter(os.Stderr, &stderr)
 		if command.Run() == nil {
