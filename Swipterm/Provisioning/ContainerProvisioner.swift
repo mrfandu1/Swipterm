@@ -637,6 +637,45 @@ nonisolated enum ContainerProvisioner {
         fi
     }
 
+    configure_polkit() {
+        if [ -d /etc/polkit-1/rules.d ] || [ -d /usr/share/polkit-1/rules.d ]; then
+            if [ ! -d /etc/polkit-1/rules.d ]; then
+                mkdir -p /etc/polkit-1/rules.d
+                if getent group polkitd >/dev/null 2>&1; then
+                    chown 0:polkitd /etc/polkit-1/rules.d
+                    chmod 0750 /etc/polkit-1/rules.d
+                elif id -u polkitd >/dev/null 2>&1; then
+                    chown polkitd:0 /etc/polkit-1/rules.d
+                    chmod 0700 /etc/polkit-1/rules.d
+                else
+                    chown 0:0 /etc/polkit-1/rules.d
+                    chmod 0755 /etc/polkit-1/rules.d
+                fi
+            fi
+            cat > /etc/polkit-1/rules.d/49-swipterm.rules <<EOF
+    polkit.addRule(function(action, subject) {
+        if (subject.user == "$user") {
+            return polkit.Result.YES;
+        }
+    });
+    EOF
+            chown 0:0 /etc/polkit-1/rules.d/49-swipterm.rules
+            chmod 0644 /etc/polkit-1/rules.d/49-swipterm.rules
+        fi
+        if [ -d /etc/polkit-1/localauthority/50-local.d ]; then
+            cat > /etc/polkit-1/localauthority/50-local.d/49-swipterm.pkla <<EOF
+    [Swipterm]
+    Identity=unix-user:$user
+    Action=*
+    ResultAny=yes
+    ResultInactive=yes
+    ResultActive=yes
+    EOF
+            chown 0:0 /etc/polkit-1/localauthority/50-local.d/49-swipterm.pkla
+            chmod 0644 /etc/polkit-1/localauthority/50-local.d/49-swipterm.pkla
+        fi
+    }
+
     load_user() {
         user_home=$(getent passwd "$user" | cut -d : -f 6)
         user_group=$(id -gn "$user")
@@ -949,6 +988,11 @@ nonisolated enum ContainerProvisioner {
         create_user
         configure_sudo
         configure_doas
+        configure_polkit
+        if have loginctl; then
+            mkdir -p /var/lib/systemd/linger
+            : > "/var/lib/systemd/linger/$user"
+        fi
     elif [ -n "${SWIPTERM_PASSWORD:-}" ]; then
         printf 'root:%s\n' "$SWIPTERM_PASSWORD" | chpasswd
     fi
