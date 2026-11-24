@@ -21,16 +21,13 @@ private struct ContentView: View {
                 Color.clear
             case .setup, .provisioning:
                 NavigationStack {
-                    Group {
-                        switch system.state {
-                        case let .provisioning(provisioning):
-                            ProvisioningView(provisioning: provisioning)
-                                .id(provisioning.attempt)
-                        default:
-                            SetupView(draft: $setupDraft)
-                        }
+                    switch system.state {
+                    case let .provisioning(provisioning):
+                        ProvisioningView(provisioning: provisioning)
+                            .id(provisioning.attempt)
+                    default:
+                        SetupView(draft: $setupDraft)
                     }
-                    .navigationTitle("Swipterm Setup")
                 }
             case .booting, .running:
                 TerminalContainerView(sessionManager: sessionManager)

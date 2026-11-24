@@ -86,7 +86,7 @@ final class TerminalSession: Identifiable {
 
     var title: String {
         let trimmed = extras.title.trimmingCharacters(in: .whitespaces)
-        return trimmed.isEmpty ? String(localized: "Session \(number)") : trimmed
+        return trimmed.isEmpty ? LinuxSystem.shared.installedContainer?.name ?? "" : trimmed
     }
 
     var workingDirectory: String {

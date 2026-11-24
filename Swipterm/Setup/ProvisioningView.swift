@@ -25,28 +25,13 @@ struct ProvisioningView: View {
                     .controlSize(.large)
             }
         }
+        .navigationTitle("Swipterm Setup")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if provisioning.failure == nil {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel", role: .cancel) {
                         system.reset()
-                    }
-                }
-            } else {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Back to Setup", role: .destructive) {
-                        system.reset()
-                    }
-                }
-                ToolbarItem(placement: .primaryAction) {
-                    Button("Copy Output", systemImage: "doc.on.doc") {
-                        UIPasteboard.general.string = system.consoleText
-                    }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Retry") {
-                        system.retrySetup()
                     }
                 }
             }
@@ -57,11 +42,11 @@ struct ProvisioningView: View {
             }
             Button("Copy Output") {
                 UIPasteboard.general.string = system.consoleText
-            }
-            Button("Back to Setup", role: .destructive) {
                 system.reset()
             }
-            Button("OK", role: .cancel) {}
+            Button("OK", role: .cancel) {
+                system.reset()
+            }
         } message: { failure in
             Text(failure)
         }

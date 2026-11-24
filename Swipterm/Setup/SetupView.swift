@@ -160,6 +160,9 @@ struct SetupView: View {
             }
         }
         .scrollDismissesKeyboard(.interactively)
+        .modifier(FormColumnModifier())
+        .navigationTitle("Swipterm Setup")
+        .navigationBarTitleDisplayMode(.inline)
         .fileImporter(
             isPresented: $showFileImporter,
             allowedContentTypes: Self.supportedArchiveTypes,
@@ -494,6 +497,23 @@ private struct SetupMirrorPicker: View {
                 }
             }
         }
+    }
+}
+
+struct FormColumnModifier: ViewModifier {
+    private static let maxWidth: CGFloat = 640
+
+    @State private var width: CGFloat = 0
+
+    func body(content: Content) -> some View {
+        let margin = (width - Self.maxWidth) / 2
+        content
+            .contentMargins(.horizontal, margin > 20 ? margin : nil, for: .scrollContent)
+            .onGeometryChange(for: CGFloat.self) { proxy in
+                proxy.size.width
+            } action: { newWidth in
+                width = newWidth
+            }
     }
 }
 

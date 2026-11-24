@@ -61,6 +61,7 @@ struct SetupSSHView: View {
             }
         }
         .scrollDismissesKeyboard(.interactively)
+        .modifier(FormColumnModifier())
         .navigationTitle(Text(verbatim: "SSH"))
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $isEditingPublicKey) {
@@ -186,6 +187,7 @@ struct SetupSoftwareView: View {
                 }
             }
         }
+        .modifier(FormColumnModifier())
         .navigationTitle("Software")
         .navigationBarTitleDisplayMode(.inline)
     }

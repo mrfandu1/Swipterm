@@ -257,13 +257,6 @@ nonisolated enum ContainerProvisioner {
         set_option /etc/dnf/dnf.conf max_parallel_downloads 5
     }
 
-    prepare_alpine() {
-        if ! have sudo; then
-            step "sudo"
-            apk add --no-cache sudo
-        fi
-    }
-
     index_modules() {
         release=$(uname -r)
         for modules in "/lib/modules/$release" "/usr/lib/modules/$release"; do
@@ -285,7 +278,7 @@ nonisolated enum ContainerProvisioner {
         case "$SWIPTERM_DISTRIBUTION" in
         debian | devuan | kali | ubuntu)
             set_option /etc/initramfs-tools/update-initramfs.conf update_initramfs no
-            apt-get update
+            sync_packages
             INITRD=No apt-get install -f -y --no-install-recommends -o Dpkg::Options::=--force-confold
             ;;
         alpine)
@@ -399,6 +392,7 @@ nonisolated enum ContainerProvisioner {
             fi
         fi
         if [ "$SWIPTERM_DISTRIBUTION" = alpine ]; then
+            have sudo || add sudo
             if want_tool pnpm || want_tool bun || want_agent claude-code; then
                 add libgcc libstdc++
             fi
@@ -413,20 +407,21 @@ nonisolated enum ContainerProvisioner {
         fi
     }
 
-    install_packages() {
+    sync_packages() {
+        [ -z "$packages_synced" ] || return 0
+        packages_synced=1
         case "$SWIPTERM_DISTRIBUTION" in
         debian | devuan | kali | ubuntu)
             apt-get update
-            apt-get install -y --no-install-recommends -o Dpkg::Options::=--force-confold "$@"
             ;;
         alpine)
-            apk add --no-cache "$@"
+            apk update
             ;;
         arch)
             if [ -e /var/lib/pacman/db.lck ] && ! pgrep -x pacman >/dev/null 2>&1; then
                 rm -f /var/lib/pacman/db.lck
             fi
-            pacman -Syu --noconfirm --needed --disable-download-timeout "$@"
+            pacman -Sy --disable-download-timeout
             ;;
         alma | centos | fedora | openEuler | oracle | rocky)
             if [ "$SWIPTERM_DISTRIBUTION" = oracle ]; then
@@ -437,14 +432,36 @@ nonisolated enum ContainerProvisioner {
                 alma:9 | centos:9 | oracle:9 | rocky:9) dnf -y module enable nodejs:24 || dnf -y module enable nodejs:22 ;;
                 esac
             fi
-            dnf -y --setopt=install_weak_deps=False install "$@"
             ;;
         openSUSE)
-            zypper --non-interactive install --no-recommends "$@"
+            zypper --non-interactive refresh
             ;;
         void)
             xbps-install -Suy xbps
-            xbps-install -Sy "$@"
+            ;;
+        esac
+    }
+
+    install_packages() {
+        sync_packages
+        case "$SWIPTERM_DISTRIBUTION" in
+        debian | devuan | kali | ubuntu)
+            apt-get install -y --no-install-recommends -o Dpkg::Options::=--force-confold "$@"
+            ;;
+        alpine)
+            apk add "$@"
+            ;;
+        arch)
+            pacman -Su --noconfirm --needed --disable-download-timeout "$@"
+            ;;
+        alma | centos | fedora | openEuler | oracle | rocky)
+            dnf -y --setopt=install_weak_deps=False install "$@"
+            ;;
+        openSUSE)
+            zypper --non-interactive --no-refresh install --no-recommends "$@"
+            ;;
+        void)
+            xbps-install -y "$@"
             ;;
         esac
     }
@@ -457,8 +474,7 @@ nonisolated enum ContainerProvisioner {
             opensuse_node_pkgs="$opensuse_node_pkgs npm24"
             opensuse_fallback_pkgs="$opensuse_fallback_pkgs npm-default"
         fi
-        zypper --non-interactive install --no-recommends $opensuse_node_pkgs ||
-            zypper --non-interactive install --no-recommends $opensuse_fallback_pkgs
+        install_packages $opensuse_node_pkgs || install_packages $opensuse_fallback_pkgs
         for tool in node npm npx; do
             if ! have "$tool" && [ -x "/usr/bin/${tool}24" ]; then
                 ln -s "${tool}24" "/usr/bin/$tool"
@@ -972,11 +988,11 @@ nonisolated enum ContainerProvisioner {
         musl=-musl
     fi
     npm_registry=${SWIPTERM_NPM_REGISTRY:-https://registry.npmjs.org}
+    packages_synced=
 
     reconcile_kernel
     case "$SWIPTERM_DISTRIBUTION" in
     arch) prepare_arch ;;
-    alpine) prepare_alpine ;;
     alma | centos | fedora | openEuler | oracle | rocky) prepare_dnf ;;
     esac
 
