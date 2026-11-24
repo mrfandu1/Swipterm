@@ -134,7 +134,7 @@ func buildAltStoreSource(arguments []string) {
 			Name:                 info["CFBundleDisplayName"].(string),
 			BundleIdentifier:     info["CFBundleIdentifier"].(string),
 			DeveloperName:        "nekohasekai",
-			LocalizedDescription: "Swipterm runs a Linux distribution on this iPhone or iPad behind a Ghostty terminal.",
+			LocalizedDescription: "A Linux environment and Ghostty-based terminal for iOS.",
 			IconURL:              releaseURL + "icon.png",
 			Category:             "developer",
 			Versions: []appVersion{{
