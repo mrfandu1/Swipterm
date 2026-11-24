@@ -61,11 +61,11 @@ final class LinuxSystem {
         var errorDescription: String? {
             switch self {
             case let .exited(code):
-                String(localized: "Initialization failed with exit status \(code).")
+                "Initialization failed with exit status \(code)."
             case let .signaled(signal):
-                String(localized: "Initialization was terminated by signal \(signal).")
+                "Initialization was terminated by signal \(signal)."
             case .halted:
-                String(localized: "The container stopped during initialization.")
+                "The container stopped during initialization."
             }
         }
     }

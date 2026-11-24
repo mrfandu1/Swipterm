@@ -31,7 +31,7 @@ struct GhosttyConfigurationView: View {
                     }
                     Stepper(value: $settings.fontSize, in: 8 ... 32, step: 1) {
                         LabeledContent("Size") {
-                            Text(verbatim: "\(Int(settings.fontSize))")
+                            Text(Int(settings.fontSize), format: .number)
                                 .monospacedDigit()
                         }
                     }
@@ -42,7 +42,7 @@ struct GhosttyConfigurationView: View {
             } header: {
                 Text("Keyboard")
             } footer: {
-                Text("The symbol bar is hidden while a hardware keyboard is connected unless this is enabled.")
+                Text("When a hardware keyboard is connected, the symbol bar is hidden unless this is turned on.")
             }
         }
         .navigationTitle("Ghostty Configuration")

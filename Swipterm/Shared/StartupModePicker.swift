@@ -7,7 +7,7 @@ struct StartupModePicker: View {
         Picker("Startup", selection: $selection) {
             Text(verbatim: "Init")
                 .tag(ContainerInitMode.managed)
-            Text(verbatim: "Systemd")
+            Text(verbatim: "systemd")
                 .tag(ContainerInitMode.system)
         }
     }

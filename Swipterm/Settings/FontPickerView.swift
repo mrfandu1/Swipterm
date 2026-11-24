@@ -78,11 +78,11 @@ struct FontPickerView: View {
                         }
                     }
                 } label: {
-                    Label("Others", systemImage: "ellipsis.circle")
+                    Label("More", systemImage: "ellipsis.circle")
                 }
             }
         }
-        .alert("Failed to Update Fonts", isPresented: Binding {
+        .alert("Couldn’t Update Fonts", isPresented: Binding {
             errorMessage != nil
         } set: { _ in
             errorMessage = nil

@@ -38,7 +38,7 @@ struct SettingsView: View {
                             system.reset()
                         }
                     } message: {
-                        Text("All files and installed packages inside the container will be erased and you will return to setup.")
+                        Text("All files and packages in the container will be erased, and you’ll return to setup.")
                     }
                 }
             }

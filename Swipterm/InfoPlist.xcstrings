@@ -21,16 +21,298 @@
             "value" : "Linux programs in Swipterm can connect to devices on your local network and accept connections from them."
           }
         },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "يمكن لبرامج Linux في Swipterm الاتصال بالأجهزة على شبكتك المحلية وقبول الاتصالات منها."
+          }
+        },
+        "bg" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Програмите за Linux в Swipterm могат да се свързват с устройства в локалната Ви мрежа и да приемат връзки от тях."
+          }
+        },
+        "bn" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm-এর Linux প্রোগ্রামগুলি আপনার লোকাল নেটওয়ার্কের ডিভাইসগুলিতে কানেক্ট করতে পারে এবং সেগুলি থেকে আসা কানেকশন গ্রহণ করতে পারে।"
+          }
+        },
+        "ca" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Els programes Linux del Swipterm poden connectar-se als dispositius de la xarxa local i acceptar-ne connexions."
+          }
+        },
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linuxové programy ve Swipterm se mohou připojovat k zařízením ve vaší místní síti a přijímat od nich připojení."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linux-programmer i Swipterm kan oprette forbindelse til enheder på dit lokale netværk og acceptere forbindelser fra dem."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linux-Programme in Swipterm können sich mit Geräten in deinem lokalen Netzwerk verbinden und Verbindungen von ihnen annehmen."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Τα προγράμματα Linux στο Swipterm μπορούν να συνδέονται σε συσκευές του τοπικού σας δικτύου και να αποδέχονται συνδέσεις από αυτές."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los programas de Linux de Swipterm pueden conectarse a dispositivos de tu red local y aceptar conexiones de ellos."
+          }
+        },
+        "es-419" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los programas de Linux de Swipterm pueden conectarse a dispositivos de tu red local y aceptar conexiones de ellos."
+          }
+        },
         "fa" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "برنامه‌های Linux در Swipterm می‌توانند به دستگاه‌های شبکهٔ محلی شما متصل شوند و اتصال‌های آن‌ها را بپذیرند."
           }
         },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swiptermin Linux-ohjelmat voivat muodostaa yhteyden paikallisverkkosi laitteisiin ja hyväksyä yhteyksiä niiltä."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les programmes Linux de Swipterm peuvent se connecter aux appareils de votre réseau local et accepter des connexions de leur part."
+          }
+        },
+        "fr-CA" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les programmes Linux de Swipterm peuvent se connecter aux appareils de votre réseau local et accepter des connexions de leur part."
+          }
+        },
+        "gu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swiptermમાંના Linux પ્રોગ્રામ તમારા સ્થાનિક નેટવર્ક પરના ડિવાઇસ સાથે કનેક્ટ થઈ શકે છે અને તેમની પાસેથી કનેક્શન સ્વીકારી શકે છે."
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "תוכנות Linux ב-Swipterm יכולות להתחבר למכשירים ברשת המקומית ולקבל מהם חיבורים."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm के Linux प्रोग्राम आपके लोकल नेटवर्क के डिवाइस से कनेक्ट हो सकते हैं और उनसे आने वाले कनेक्शन स्वीकार कर सकते हैं।"
+          }
+        },
+        "hr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linux programi u aplikaciji Swipterm mogu se povezati s uređajima na vašoj lokalnoj mreži i prihvaćati veze s njih."
+          }
+        },
+        "hu" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A Swiptermben futó Linux-programok csatlakozhatnak a helyi hálózat eszközeihez, és fogadhatnak tőlük kapcsolatokat."
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Program Linux di Swipterm dapat terhubung ke perangkat di jaringan lokal Anda dan menerima koneksi dari perangkat tersebut."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I programmi Linux in Swipterm possono connettersi ai dispositivi sulla rete locale e accettare connessioni da questi ultimi."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SwiptermのLinuxプログラムは、ローカルネットワーク上のデバイスに接続したり、それらのデバイスからの接続を受け入れたりできます。"
+          }
+        },
+        "kk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm ішіндегі Linux бағдарламалары жергілікті желідегі құрылғыларға қосыла алады және олардан келетін қосылымдарды қабылдай алады."
+          }
+        },
+        "kn" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm ನಲ್ಲಿರುವ Linux ಪ್ರೋಗ್ರಾಂಗಳು ನಿಮ್ಮ ಸ್ಥಳೀಯ ನೆಟ್‌ವರ್ಕ್‌ನಲ್ಲಿರುವ ಸಾಧನಗಳಿಗೆ ಕನೆಕ್ಟ್ ಆಗಬಹುದು ಮತ್ತು ಅವುಗಳಿಂದ ಕನೆಕ್ಷನ್‌ಗಳನ್ನು ಸ್ವೀಕರಿಸಬಹುದು."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm의 Linux 프로그램은 로컬 네트워크에 있는 기기에 연결하거나 해당 기기로부터의 연결을 수락할 수 있습니다."
+          }
+        },
+        "lt" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„Swipterm“ esančios „Linux“ programos gali prisijungti prie jūsų vietinio tinklo įrenginių ir priimti iš jų prisijungimus."
+          }
+        },
+        "ml" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm-ലെ Linux പ്രോഗ്രാമുകൾക്ക് നിങ്ങളുടെ ലോക്കൽ നെറ്റ്‌വർക്കിലെ ഉപകരണങ്ങളിലേക്ക് കണക്റ്റ് ചെയ്യാനും അവയിൽ നിന്നുള്ള കണക്ഷനുകൾ സ്വീകരിക്കാനും കഴിയും."
+          }
+        },
+        "mr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm मधील Linux प्रोग्राम तुमच्या लोकल नेटवर्कवरील डिव्हाइसशी कनेक्ट होऊ शकतात आणि त्यांच्याकडून येणारी कनेक्शन स्वीकारू शकतात."
+          }
+        },
+        "ms" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Program Linux dalam Swipterm boleh menyambung ke peranti pada rangkaian setempat anda dan menerima sambungan daripada peranti tersebut."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linux-programmer i Swipterm kan koble til enheter på det lokale nettverket og godta tilkoblinger fra dem."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linux-programma’s in Swipterm kunnen verbinding maken met apparaten in je lokale netwerk en verbindingen van die apparaten accepteren."
+          }
+        },
+        "or" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm ରେ ଥିବା Linux ପ୍ରୋଗ୍ରାମ୍ ଆପଣଙ୍କ ଲୋକାଲ୍ ନେଟୱର୍କରେ ଥିବା ଡିଭାଇସ୍ ସହ ସଂଯୋଗ କରିପାରିବେ ଏବଂ ସେଗୁଡ଼ିକଠାରୁ ସଂଯୋଗ ଗ୍ରହଣ କରିପାରିବେ।"
+          }
+        },
+        "pa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm ਵਿਚਲੇ Linux ਪ੍ਰੋਗਰਾਮ ਤੁਹਾਡੇ ਸਥਾਨਕ ਨੈੱਟਵਰਕ ਦੇ ਡੀਵਾਈਸਾਂ ਨਾਲ ਕਨੈਕਟ ਹੋ ਸਕਦੇ ਹਨ ਅਤੇ ਉਨ੍ਹਾਂ ਤੋਂ ਕਨੈਕਸ਼ਨ ਸਵੀਕਾਰ ਕਰ ਸਕਦੇ ਹਨ।"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Programy systemu Linux w Swipterm mogą łączyć się z urządzeniami w Twojej sieci lokalnej i akceptować połączenia od nich."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Os programas Linux no Swipterm podem se conectar a dispositivos da sua rede local e aceitar conexões deles."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Os programas Linux no Swipterm podem ligar‑se a dispositivos na rede local e aceitar ligações desses dispositivos."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Programele Linux din Swipterm se pot conecta la dispozitive din rețeaua dvs. locală și pot accepta conexiuni de la acestea."
+          }
+        },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Программы Linux в Swipterm могут подключаться к устройствам в вашей локальной сети и принимать от них подключения."
+            "value" : "Программы Linux в Swipterm могут подключаться к устройствам в Вашей локальной сети и принимать от них подключения."
+          }
+        },
+        "sk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linuxové programy vo Swipterm sa môžu pripájať k zariadeniam vo vašej lokálnej sieti a prijímať od nich pripojenia."
+          }
+        },
+        "sl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Programi Linux v aplikaciji Swipterm se lahko povežejo z napravami v vašem lokalnem omrežju in sprejemajo povezave z njih."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linux-program i Swipterm kan ansluta till enheter i ditt lokala nätverk och ta emot anslutningar från dem."
+          }
+        },
+        "ta" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm இல் உள்ள Linux நிரல்கள் உங்கள் உள்ளூர் நெட்வொர்க்கில் உள்ள சாதனங்களுடன் இணையலாம், அவற்றிலிருந்து வரும் இணைப்புகளை ஏற்கலாம்."
+          }
+        },
+        "te" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm‌లోని Linux ప్రోగ్రామ్‌లు మీ లోకల్ నెట్‌వర్క్‌లోని పరికరాలకు కనెక్ట్ అవ్వగలవు, వాటి నుండి వచ్చే కనెక్షన్‌లను ఆమోదించగలవు."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "โปรแกรม Linux ใน Swipterm สามารถเชื่อมต่อกับอุปกรณ์บนเครือข่ายภายในของคุณและยอมรับการเชื่อมต่อจากอุปกรณ์เหล่านั้นได้"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm’deki Linux programları yerel ağınızdaki aygıtlara bağlanabilir ve bu aygıtlardan gelen bağlantıları kabul edebilir."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Програми Linux у Swipterm можуть підʼєднуватися до пристроїв у вашій локальній мережі й приймати підключення від них."
+          }
+        },
+        "ur" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm میں Linux پروگرامز آپ کے مقامی نیٹ ورک پر موجود ڈیوائسز سے منسلک ہو سکتے ہیں اور ان سے کنکشنز قبول کر سکتے ہیں۔"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Các chương trình Linux trong Swipterm có thể kết nối với các thiết bị trên mạng cục bộ của bạn và chấp nhận kết nối từ các thiết bị đó."
+          }
+        },
+        "zh-HK" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipterm 中的 Linux 程式可以連接你本地網絡上的裝置，也可以接受這些裝置的連線。"
           }
         },
         "zh-Hans" : {
@@ -42,7 +324,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Swipterm 中的 Linux 程式可以連線至區域網路上的裝置，也可以接受這些裝置的連線。"
+            "value" : "Swipterm中的Linux程式可以連線至區域網路上的裝置，也可以接受這些裝置的連線。"
           }
         }
       }

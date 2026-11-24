@@ -71,7 +71,7 @@ struct TerminalSessionContentView: View {
 
     private var endTitle: Text {
         if case .finished(.failed) = session.phase {
-            return Text("Failed to Start Session")
+            return Text("Couldn’t Start Session")
         }
         return Text("Session Ended")
     }

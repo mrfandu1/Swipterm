@@ -35,7 +35,7 @@ struct EditGhosttyConfigView: View {
                         Label("Import from File", systemImage: "doc.badge.plus")
                     }
                 } label: {
-                    Label("Others", systemImage: "line.3.horizontal.circle")
+                    Label("More", systemImage: "line.3.horizontal.circle")
                 }
             }
             .fileImporter(isPresented: $showFileImporter, allowedContentTypes: [.item]) { result in
@@ -52,7 +52,7 @@ struct EditGhosttyConfigView: View {
                     importError = error.localizedDescription
                 }
             }
-            .alert("Failed to Import Configuration", isPresented: Binding {
+            .alert("Couldn’t Import Configuration", isPresented: Binding {
                 importError != nil
             } set: { _ in
                 importError = nil

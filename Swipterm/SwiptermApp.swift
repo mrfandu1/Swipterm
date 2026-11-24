@@ -48,7 +48,7 @@ private struct ContentView: View {
                 }
             case let .failed(message):
                 ContentUnavailableView {
-                    Label("Failed to Start Linux", systemImage: "exclamationmark.triangle")
+                    Label("Couldn’t Start Linux", systemImage: "exclamationmark.triangle")
                 } description: {
                     Text(message)
                         .textSelection(.enabled)

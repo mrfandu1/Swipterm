@@ -7,7 +7,7 @@ nonisolated enum RootImageDownloadError: LocalizedError, Sendable {
     var errorDescription: String? {
         switch self {
         case .emptyFile:
-            String(localized: "Downloaded archive is empty.")
+            String(localized: "The downloaded archive is empty.")
         }
     }
 }

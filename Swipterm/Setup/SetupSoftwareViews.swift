@@ -164,7 +164,7 @@ struct SetupSoftwareView: View {
                 }
             }
 
-            Section("Agents") {
+            Section("Coding Agents") {
                 ForEach(CodingAgent.allCases, id: \.self) { agent in
                     let isSelected = software.agents.contains(agent)
                     SetupSelectionRow(title: agent.displayName, isSelected: isSelected) {

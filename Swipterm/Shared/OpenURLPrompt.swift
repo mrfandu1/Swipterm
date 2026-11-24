@@ -16,7 +16,7 @@ struct OpenURLPromptModifier: ViewModifier {
             } set: { _ in
                 system.pendingOpenURL = nil
             }, presenting: system.pendingOpenURL) { url in
-                Button("Open in Safari") {
+                Button("Open") {
                     openURL(url)
                 }
                 .keyboardShortcut(.defaultAction)

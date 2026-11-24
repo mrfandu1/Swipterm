@@ -51,7 +51,7 @@ struct ProvisioningView: View {
                 }
             }
         }
-        .alert("Setup Failed", isPresented: $isPresentingFailure, presenting: provisioning.failure) { _ in
+        .alert("Couldn’t Create Container", isPresented: $isPresentingFailure, presenting: provisioning.failure) { _ in
             Button("Retry") {
                 system.retrySetup()
             }

@@ -173,7 +173,7 @@ struct SetupView: View {
                 errorMessage = error.localizedDescription
             }
         }
-        .alert("Cannot Start Installation", isPresented: Binding {
+        .alert("Can’t Create Container", isPresented: Binding {
             errorMessage != nil
         } set: { presented in
             if !presented {
@@ -182,7 +182,7 @@ struct SetupView: View {
         }) {} message: {
             Text(errorMessage ?? "")
         }
-        .alert("Failed to Load Versions", isPresented: Binding {
+        .alert("Couldn’t Load Versions", isPresented: Binding {
             catalogFailure != nil
         } set: { presented in
             if !presented {
@@ -296,7 +296,7 @@ struct SetupView: View {
             return "To use root, turn on Don’t Use Separate User."
         }
         guard !draft.username.isEmpty, !Self.isValidUsername(draft.username) else { return nil }
-        return "Use up to 32 lowercase letters, digits, “_” and “-”, starting with a letter or “_”."
+        return "Use up to 32 lowercase letters, digits, underscores (_), and hyphens (-), starting with a letter or underscore."
     }
 
     private var canInstall: Bool {
