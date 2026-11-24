@@ -201,14 +201,14 @@ final class LinuxDistributionCatalogStore {
     }
 
     func loadIfNeeded() async {
-        if case .loaded = loadState, !releasesByDistribution.isEmpty {
+        switch loadState {
+        case .loaded, .failed:
             return
+        case .loading:
+            await activeTask?.value
+        case .idle:
+            await refresh()
         }
-        if let activeTask {
-            await activeTask.value
-            return
-        }
-        await refresh()
     }
 
     func refresh() async {
@@ -236,43 +236,13 @@ private nonisolated enum LinuxDistributionCatalogClient {
     static let simplestreamsServerURL = URL(string: "https://images.linuxcontainers.org")!
     static let voidServerURL = URL(string: "https://repo-fastly.voidlinux.org")!
 
-    private struct SimplestreamsDocument: Decodable {
-        let products: [String: SimplestreamsProduct]
-    }
-
-    private struct SimplestreamsProduct: Decodable {
-        let arch: String?
-        let os: String?
-        let release: String?
-        let releaseTitle: String?
-        let variant: String?
-        let versions: [String: SimplestreamsVersion]?
-
-        enum CodingKeys: String, CodingKey {
-            case arch
-            case os
-            case release
-            case releaseTitle = "release_title"
-            case variant
-            case versions
-        }
-    }
-
-    private struct SimplestreamsVersion: Decodable {
-        let items: [String: SimplestreamsItem]?
-    }
-
-    private struct SimplestreamsItem: Decodable {
-        let path: String?
-    }
-
     static func fetchARM64Catalog() async throws -> [LinuxDistribution: [LinuxReleaseImage]] {
-        async let simplestreams = Result { try await fetchSimplestreams() }
+        async let lxc = Result { try await fetchLXCIndex() }
         async let void = Result { try await fetchVoid() }
 
         var grouped: [LinuxDistribution: [LinuxReleaseImage]] = [:]
         var firstError: Error?
-        for result in await [simplestreams, void] {
+        for result in await [lxc, void] {
             switch result {
             case let .success(images):
                 for image in images {
@@ -297,52 +267,61 @@ private nonisolated enum LinuxDistributionCatalogClient {
         return grouped
     }
 
-    private static func fetch(_ path: String, from server: URL) async throws -> Data {
+    private static func fetch(_ path: String, from server: URL) async throws -> String {
         let (data, response) = try await HTTPClient.data(from: server.appending(path: path, directoryHint: .notDirectory))
         try response.requireSuccess()
-        return data
+        guard let text = String(data: data, encoding: .utf8) else {
+            throw URLError(.cannotDecodeContentData)
+        }
+        return text
     }
 
-    private static func fetchSimplestreams() async throws -> [LinuxReleaseImage] {
-        let document = try await JSONDecoder().decode(
-            SimplestreamsDocument.self,
-            from: fetch("streams/v1/images.json", from: simplestreamsServerURL)
-        )
-        var images: [LinuxReleaseImage] = []
-        for (productKey, product) in document.products {
-            guard product.arch == "arm64",
-                  product.variant == "default",
-                  let os = product.os,
-                  let distribution = LinuxDistribution.fromSimplestreamsOS(os),
-                  let release = product.release,
-                  !distribution.unsupportedReleases.contains(release),
-                  let versions = product.versions,
-                  let latestSerial = versions.keys.sorted().last,
-                  let tarItem = versions[latestSerial]?.items?["root.tar.xz"],
-                  let artifactPath = tarItem.path?.trimmingCharacters(in: CharacterSet(charactersIn: "/")),
-                  !artifactPath.isEmpty
+    private static func fetchLXCIndex() async throws -> [LinuxReleaseImage] {
+        let index = try await fetch("meta/1.0/index-system", from: simplestreamsServerURL)
+        var latestByID: [String: LinuxReleaseImage] = [:]
+        for line in index.split(whereSeparator: \.isNewline) {
+            let fields = line.split(separator: ";", omittingEmptySubsequences: false)
+            guard fields.count >= 6,
+                  fields[2] == "arm64",
+                  fields[3] == "default"
             else {
                 continue
             }
-            let label = formatReleaseLabel(distribution: distribution, release: release, releaseTitle: product.releaseTitle)
-            images.append(LinuxReleaseImage(
-                id: productKey,
+            let os = String(fields[0])
+            let release = String(fields[1])
+            let serial = String(fields[4])
+            let directory = fields[5].trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            guard let distribution = LinuxDistribution.fromSimplestreamsOS(os),
+                  !distribution.unsupportedReleases.contains(release),
+                  !serial.isEmpty,
+                  !directory.isEmpty
+            else {
+                continue
+            }
+            let id = "\(os):\(release):arm64:default"
+            if let existing = latestByID[id], existing.buildSerial >= serial {
+                continue
+            }
+            let label = formatReleaseLabel(distribution: distribution, release: release)
+            latestByID[id] = LinuxReleaseImage(
+                id: id,
                 distribution: distribution,
                 releaseKey: release,
                 displayTitle: label.title,
-                buildSerial: latestSerial,
-                artifactPath: artifactPath,
+                buildSerial: serial,
+                artifactPath: "\(directory)/rootfs.tar.xz",
                 sortRank: label.rank,
                 isRecommended: distribution == .ubuntu && release.lowercased() == "noble"
-            ))
+            )
         }
-        return images
+        if latestByID.isEmpty {
+            throw URLError(.cannotParseResponse)
+        }
+        return Array(latestByID.values)
     }
 
     private static func fetchVoid() async throws -> [LinuxReleaseImage] {
-        guard let checksums = try await String(data: fetch("live/current/sha256sum.txt", from: voidServerURL), encoding: .utf8) else {
-            throw URLError(.cannotDecodeContentData)
-        }
+        let checksums = try await fetch("live/current/sha256sum.txt", from: voidServerURL)
         let prefix = "void-aarch64-ROOTFS-"
         for line in checksums.split(whereSeparator: \.isNewline) {
             guard let open = line.firstIndex(of: "("), let close = line.firstIndex(of: ")"), open < close else { continue }
@@ -366,8 +345,7 @@ private nonisolated enum LinuxDistributionCatalogClient {
 
     private static func formatReleaseLabel(
         distribution: LinuxDistribution,
-        release: String,
-        releaseTitle: String?
+        release: String
     ) -> (title: String, rank: Int) {
         let lowered = release.lowercased()
         switch distribution {
@@ -378,7 +356,7 @@ private nonisolated enum LinuxDistributionCatalogClient {
             case "noble": return ("24.04 LTS (Noble)", 24040)
             case "jammy": return ("22.04 LTS (Jammy)", 22040)
             case "focal": return ("20.04 LTS (Focal)", 20040)
-            default: return (releaseTitle ?? release.capitalized, numericRank(release))
+            default: return (release.capitalized, numericRank(release))
             }
         case .debian:
             switch lowered {
@@ -387,43 +365,43 @@ private nonisolated enum LinuxDistributionCatalogClient {
             case "bullseye": return ("11 (Bullseye)", 1100)
             case "forky": return ("Forky (Testing)", 1250)
             case "sid": return ("Sid (Unstable)", 1240)
-            default: return (releaseTitle ?? release.capitalized, numericRank(release))
+            default: return (release.capitalized, numericRank(release))
             }
         case .devuan:
             switch lowered {
             case "excalibur": return ("6 (Excalibur)", 600)
             case "daedalus": return ("5 (Daedalus)", 500)
             case "chimaera": return ("4 (Chimaera)", 400)
-            default: return (releaseTitle ?? release.capitalized, numericRank(release))
+            default: return (release.capitalized, numericRank(release))
             }
         case .alpine:
             if lowered == "edge" {
                 return ("Edge", 100)
             }
-            return (releaseTitle ?? release, numericRank(release) + 1000)
+            return (release, numericRank(release) + 1000)
         case .centos:
             if lowered.hasSuffix("-stream") {
                 let major = release.replacingOccurrences(of: "-Stream", with: "", options: .caseInsensitive)
                 return ("Stream \(major)", numericRank(major) + 1000)
             }
-            return (releaseTitle ?? release, numericRank(release))
+            return (release, numericRank(release))
         case .openSUSE:
             if lowered == "tumbleweed" {
                 return ("Tumbleweed", 2000)
             }
-            return ("Leap \(releaseTitle ?? release)", numericRank(release) + 1000)
+            return ("Leap \(release)", numericRank(release) + 1000)
         case .arch, .kali:
             if lowered == "current" {
                 return ("Rolling", 1000)
             }
-            return (releaseTitle ?? release, numericRank(release))
+            return (release, numericRank(release))
         case .openEuler:
             if lowered == "24.03" {
                 return ("24.03 LTS", 24030)
             }
-            return (releaseTitle ?? release, numericRank(release))
+            return (release, numericRank(release))
         case .alma, .fedora, .oracle, .rocky, .void:
-            return (releaseTitle ?? release, numericRank(release))
+            return (release, numericRank(release))
         }
     }
 
