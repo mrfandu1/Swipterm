@@ -4,7 +4,7 @@ struct SettingsView: View {
     private let system = LinuxSystem.shared
 
     @Environment(\.dismiss) private var dismiss
-    @Bindable private var settings = AppSettings.shared
+    @State private var dataSize: Int64?
     @State private var isConfirmingReset = false
     @State private var isPromptingRestart = false
 
@@ -14,10 +14,14 @@ struct SettingsView: View {
                 NavigationLink("Ghostty Configuration") {
                     GhosttyConfigurationView()
                 }
-                Toggle("Keep Screen Awake", isOn: $settings.keepScreenAwake)
             }
             if let container = system.installedContainer {
                 Section("Container") {
+                    LabeledContent("Data Size") {
+                        if let dataSize {
+                            Text(dataSize.formatted(.byteCount(style: .file)))
+                        }
+                    }
                     if container.systemInit == .systemd {
                         StartupModePicker(selection: Binding {
                             container.initMode
@@ -42,12 +46,13 @@ struct SettingsView: View {
                     }
                 }
             }
-            Section("About") {
-                LabeledContent("Version", value: version)
-            }
         }
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
+        .task {
+            guard system.installedContainer != nil else { return }
+            dataSize = await Task.detached(priority: .utility) { LinuxSystem.containerDataSize() }.value
+        }
         .alert("Restart Required", isPresented: $isPromptingRestart) {
             Button("Restart Now") {
                 dismiss()
@@ -64,10 +69,5 @@ struct SettingsView: View {
                 }
             }
         }
-    }
-
-    private var version: String {
-        let info = Bundle.main.infoDictionary ?? [:]
-        return "\(info["CFBundleShortVersionString"] ?? "") (\(info["CFBundleVersion"] ?? ""))"
     }
 }

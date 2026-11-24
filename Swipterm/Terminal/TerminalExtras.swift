@@ -18,7 +18,6 @@ final class TerminalExtras: NSObject,
 {
     @ObservationIgnored weak var state: TerminalViewState?
     @ObservationIgnored var onCommandKey: ((String) -> Bool)?
-    @ObservationIgnored var alwaysShowsSymbolBar = false
     @ObservationIgnored var onOpenURL: ((String, TerminalOpenURLKind) -> Void)?
     @ObservationIgnored var onDesktopNotification: ((String, String) -> Void)?
 

@@ -17,8 +17,6 @@ final class AppSettings {
         static let fontFollowTheme = "fontFollowTheme"
         static let fontFamily = "fontFamily"
         static let fontSize = "fontSize"
-        static let alwaysShowSymbolBar = "alwaysShowSymbolBar"
-        static let keepScreenAwake = "keepScreenAwake"
     }
 
     var lightTheme: String {
@@ -49,14 +47,6 @@ final class AppSettings {
         didSet { saveTerminalAppearance(fontSize, for: Key.fontSize) }
     }
 
-    var alwaysShowSymbolBar: Bool {
-        didSet { saveTerminalAppearance(alwaysShowSymbolBar, for: Key.alwaysShowSymbolBar) }
-    }
-
-    var keepScreenAwake: Bool {
-        didSet { store.set(keepScreenAwake, for: Key.keepScreenAwake) }
-    }
-
     private let store = PreferenceStore.shared
 
     private init() {
@@ -67,8 +57,6 @@ final class AppSettings {
         fontFollowTheme = store.value(Bool.self, for: Key.fontFollowTheme) ?? true
         fontFamily = store.value(String.self, for: Key.fontFamily) ?? ""
         fontSize = store.value(Double.self, for: Key.fontSize) ?? 10
-        alwaysShowSymbolBar = store.value(Bool.self, for: Key.alwaysShowSymbolBar) ?? false
-        keepScreenAwake = store.value(Bool.self, for: Key.keepScreenAwake) ?? false
     }
 
     private func saveTerminalAppearance(_ value: some Encodable, for name: String) {

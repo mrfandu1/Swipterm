@@ -37,13 +37,6 @@ struct GhosttyConfigurationView: View {
                     }
                 }
             }
-            Section {
-                Toggle("Always Show Symbol Bar", isOn: $settings.alwaysShowSymbolBar)
-            } header: {
-                Text("Keyboard")
-            } footer: {
-                Text("When a hardware keyboard is connected, the symbol bar is hidden unless this is turned on.")
-            }
         }
         .navigationTitle("Ghostty Configuration")
         .navigationBarTitleDisplayMode(.inline)

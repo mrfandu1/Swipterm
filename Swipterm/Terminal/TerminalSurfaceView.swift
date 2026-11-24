@@ -134,7 +134,7 @@ struct TerminalSurfaceView: View {
         }
 
         override var inputAccessoryView: UIView? {
-            if GCKeyboard.coalesced != nil, (delegate as? TerminalExtras)?.alwaysShowsSymbolBar != true {
+            if GCKeyboard.coalesced != nil {
                 return nil
             }
             return super.inputAccessoryView

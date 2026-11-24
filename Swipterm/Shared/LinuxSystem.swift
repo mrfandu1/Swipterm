@@ -1028,6 +1028,20 @@ final class LinuxSystem {
         URLSession.shared.dataTask(with: url) { _, _, _ in }.resume()
     }
 
+    nonisolated static func containerDataSize() -> Int64 {
+        guard let enumerator = FileManager.default.enumerator(
+            at: rootDirectoryURL,
+            includingPropertiesForKeys: [.totalFileAllocatedSizeKey]
+        ) else {
+            return 0
+        }
+        var size: Int64 = 0
+        for case let url as URL in enumerator {
+            size += Int64((try? url.resourceValues(forKeys: [.totalFileAllocatedSizeKey]).totalFileAllocatedSize) ?? 0)
+        }
+        return size
+    }
+
     private nonisolated static var rootDirectoryURL: URL {
         URL.applicationSupportDirectory.appending(path: "Root", directoryHint: .isDirectory)
     }

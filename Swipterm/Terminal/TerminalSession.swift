@@ -63,7 +63,6 @@ final class TerminalSession: Identifiable {
         )
         state.configuration = TerminalSurfaceOptions(backend: .inMemory(session))
         extras.state = state
-        extras.alwaysShowsSymbolBar = AppSettings.shared.alwaysShowSymbolBar
 
         let view = TerminalSurfaceView.SurfaceView(frame: .zero)
         view.controller = state.controller
@@ -218,7 +217,6 @@ final class TerminalSession: Identifiable {
     private func applySettings() {
         state.controller.setTheme(TerminalAppearance.theme())
         state.controller.setTerminalConfiguration(TerminalAppearance.fontConfiguration())
-        extras.alwaysShowsSymbolBar = AppSettings.shared.alwaysShowSymbolBar
     }
 
     private func postSystemNotification(title: String, body: String) {
