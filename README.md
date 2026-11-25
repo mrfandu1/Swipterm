@@ -30,6 +30,10 @@ https://github.com/swipt-automation/Swipterm/releases/download/nightly/altstore.
 
 Or download [Swipterm.ipa](https://github.com/swipt-automation/Swipterm/releases/download/nightly/Swipterm.ipa) and sideload it.
 
+## Run in the background
+
+To run in the background using low-precision location (which does not actually activate your GPS or drain your battery), run `swipterm caffeinate` in the terminal. This turns on background execution and shows a toggle in Settings.
+
 ## Benchmarks
 
 | Benchmark                                     | Swipterm (with JIT) | Swipterm | iSH-arm64           | iSH                 |
