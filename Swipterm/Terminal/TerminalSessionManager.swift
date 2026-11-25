@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import SwiftUI
 
 @Observable
 final class TerminalSessionManager {
@@ -39,6 +40,20 @@ final class TerminalSessionManager {
     func selectSession(at index: Int) {
         guard sessions.indices.contains(index) else { return }
         activeSessionID = sessions[index].id
+    }
+
+    func moveSessions(_ ids: [UUID], before nextID: UUID?) {
+        let moving = Set(ids)
+        let offsets = IndexSet(sessions.indices.filter { moving.contains(sessions[$0].id) })
+        guard !offsets.isEmpty else { return }
+        let destination: Int
+        if let nextID {
+            guard let index = sessions.firstIndex(where: { $0.id == nextID }) else { return }
+            destination = index
+        } else {
+            destination = sessions.endIndex
+        }
+        sessions.move(fromOffsets: offsets, toOffset: destination)
     }
 
     func selectAdjacentSession(offset: Int) {

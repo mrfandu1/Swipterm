@@ -21,6 +21,7 @@ struct TerminalSessionContentView: View {
                 isActive: isActive,
                 isVisible: isVisible
             )
+            .padding(.horizontal, UIDevice.current.userInterfaceIdiom == .pad ? 4 : 0)
             if session.phase == .starting || session.phase == .running, !session.hasVisibleOutput || isEnablingJIT {
                 VStack(spacing: 12) {
                     ProgressView()

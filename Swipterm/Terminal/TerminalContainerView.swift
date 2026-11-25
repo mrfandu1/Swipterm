@@ -21,6 +21,7 @@ struct TerminalContainerView: View {
             onSetupCallbacks: setupCallbacks
         )
         .ignoresSafeArea()
+        .modifier(HorizontalBarsOnlyModifier())
         .background {
             TerminalKeyboardShortcuts(
                 onNewSession: { sessionManager.addSession() },
@@ -109,6 +110,7 @@ struct TerminalContainerView: View {
 @Observable
 private final class TerminalSplitPresentationState {
     var isSidebarOverlayVisible = false
+    var isSidebarVisible = false
     var isSettingsPresented = false
 
     var isTerminalInputActive: Bool {
@@ -201,9 +203,9 @@ private struct TerminalSplitViewRepresentable: UIViewControllerRepresentable {
             splitViewController.preferredSplitBehavior = .overlay
             coordinator.secondaryHosting?.traitOverrides.horizontalSizeClass = .compact
         } else {
-            splitViewController.traitOverrides.horizontalSizeClass = .unspecified
+            splitViewController.traitOverrides.remove(UITraitHorizontalSizeClass.self)
             splitViewController.preferredSplitBehavior = .automatic
-            coordinator.secondaryHosting?.traitOverrides.horizontalSizeClass = .unspecified
+            coordinator.secondaryHosting?.traitOverrides.remove(UITraitHorizontalSizeClass.self)
         }
     }
 
@@ -230,6 +232,7 @@ private struct TerminalSplitViewRepresentable: UIViewControllerRepresentable {
             willChangeTo displayMode: UISplitViewController.DisplayMode
         ) {
             splitState.isSidebarOverlayVisible = (displayMode == .oneOverSecondary || displayMode == .twoOverSecondary)
+            splitState.isSidebarVisible = displayMode != .secondaryOnly
         }
 
         func splitViewController(_ svc: UISplitViewController, willShow column: UISplitViewController.Column) {
@@ -254,6 +257,16 @@ private struct TerminalDetailView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     var body: some View {
+        GeometryReader { column in
+            terminalContent
+                .toolbar { toolbar(columnWidth: column.size.width) }
+        }
+        .navigationTitle(horizontalSizeClass == .regular ? "" : (sessionManager.activeSession?.title ?? ""))
+        .navigationBarTitleDisplayMode(.inline)
+        .modifier(HorizontalBarsOnlyModifier())
+    }
+
+    private var terminalContent: some View {
         ZStack {
             ForEach(sessionManager.sessions) { session in
                 let isSelected = session.id == sessionManager.activeSessionID
@@ -272,31 +285,41 @@ private struct TerminalDetailView: View {
                 }
             }
         }
-        .navigationTitle(horizontalSizeClass == .regular ? "" : (sessionManager.activeSession?.title ?? ""))
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            if horizontalSizeClass == .regular {
-                if #available(iOS 26.0, *) {
-                    ToolbarItem(placement: .principal) {
-                        TerminalTabBar(
-                            sessions: sessionManager.sessions,
-                            activeSessionID: sessionManager.activeSessionID,
-                            onSelect: { sessionManager.activeSessionID = $0 },
-                            onClose: { sessionManager.closeSession(id: $0) }
-                        )
-                    }
-                    .sharedBackgroundVisibility(.hidden)
-                } else {
-                    ToolbarItem(placement: .principal) {
-                        TerminalTabBar(
-                            sessions: sessionManager.sessions,
-                            activeSessionID: sessionManager.activeSessionID,
-                            onSelect: { sessionManager.activeSessionID = $0 },
-                            onClose: { sessionManager.closeSession(id: $0) }
-                        )
-                    }
+    }
+
+    @ToolbarContentBuilder
+    private func toolbar(columnWidth: CGFloat) -> some ToolbarContent {
+        if !splitState.isSidebarVisible {
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    sessionManager.addSession()
+                } label: {
+                    Label("New Session", systemImage: "plus")
                 }
             }
+        }
+        if horizontalSizeClass == .regular {
+            let tabBar = TerminalTabBar(
+                sessionManager: sessionManager,
+                showsActiveSessionOnly: splitState.isSidebarVisible,
+                columnWidth: columnWidth
+            )
+            if #available(iOS 26.0, *) {
+                ToolbarItem(placement: .principal) { tabBar }
+                    .sharedBackgroundVisibility(.hidden)
+            } else {
+                ToolbarItem(placement: .principal) { tabBar }
+            }
+        }
+    }
+}
+
+private struct HorizontalBarsOnlyModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 27.1, *) {
+            content.toolbarVerticalBehavior(.disabled)
+        } else {
+            content
         }
     }
 }
