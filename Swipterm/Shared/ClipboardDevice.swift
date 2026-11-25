@@ -57,7 +57,7 @@ private final nonisolated class ClipboardDeviceFile: LinuxCharacterDeviceFile, @
             (didWrite || access == .writeOnly) ? writeBuffer : nil
         }
         if let written {
-            UIPasteboard.general.string = String(decoding: written, as: UTF8.self)
+            HostClipboard.writePlainTextFromDevice(String(decoding: written, as: UTF8.self))
         }
     }
 }

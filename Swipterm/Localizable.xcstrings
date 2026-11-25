@@ -24181,6 +24181,626 @@
         }
       }
     },
+    "Paste": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "لصق"
+          }
+        },
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Постави"
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "পেস্ট করুন"
+          }
+        },
+        "ca": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enganxa"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vložit"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Indsæt"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einsetzen"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Επικόλληση"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pegar"
+          }
+        },
+        "es-419": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pegar"
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "چسباندن"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sijoita"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Coller"
+          }
+        },
+        "fr-CA": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Coller"
+          }
+        },
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "પેસ્ટ કરો"
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "הדבק"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "पेस्ट करें"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zalijepi"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beillesztés"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tempel"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Incolla"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ペースト"
+          }
+        },
+        "kk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Қою"
+          }
+        },
+        "kn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ಪೇಸ್ಟ್ ಮಾಡಿ"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "붙여넣기"
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Įklijuoti"
+          }
+        },
+        "ml": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "പേസ്റ്റ് ചെയ്യുക"
+          }
+        },
+        "mr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "पेस्ट करा"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tampal"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lim inn"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plak"
+          }
+        },
+        "or": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ପେଷ୍ଟ କରନ୍ତୁ"
+          }
+        },
+        "pa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ਪੇਸਟ ਕਰੋ"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wklej"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Colar"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Colar"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lipiți"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вставить"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vložiť"
+          }
+        },
+        "sl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prilepi"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klistra in"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ஒட்டு"
+          }
+        },
+        "te": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "పేస్ట్ చేయండి"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "วาง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yapıştır"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вставити"
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "پیسٹ کریں"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dán"
+          }
+        },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "貼上"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "粘贴"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "貼上"
+          }
+        }
+      }
+    },
+    "Paste Potentially Unsafe Text?": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "هل تريد لصق نص قد يكون غير آمن؟"
+          }
+        },
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Да се постави ли потенциално опасен текст?"
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "সম্ভাব্য অনিরাপদ টেক্সট পেস্ট করবেন?"
+          }
+        },
+        "ca": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vols enganxar text potencialment no segur?"
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vložit potenciálně nebezpečný text?"
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Indsæt potentielt usikker tekst?"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Potenziell unsicheren Text einsetzen?"
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Επικόλληση πιθανώς μη ασφαλούς κειμένου;"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Pegar texto potencialmente peligroso?"
+          }
+        },
+        "es-419": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Pegar texto potencialmente peligroso?"
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "متن بالقوه ناامن چسبانده شود؟"
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sijoitetaanko mahdollisesti vaarallinen teksti?"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Coller du texte potentiellement dangereux ?"
+          }
+        },
+        "fr-CA": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Coller du texte potentiellement dangereux?"
+          }
+        },
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "સંભવિત રીતે અસુરક્ષિત ટેક્સ્ટ પેસ્ટ કરીએ?"
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "להדביק טקסט שעלול להיות לא בטוח?"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "संभावित रूप से असुरक्षित टेक्स्ट पेस्ट करें?"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zalijepiti potencijalno nesiguran tekst?"
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beilleszti a potenciálisan veszélyes szöveget?"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tempel teks yang berpotensi tidak aman?"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Incollare testo potenzialmente non sicuro?"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "安全でない可能性があるテキストをペーストしますか？"
+          }
+        },
+        "kk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Қауіпті болуы мүмкін мәтінді қою керек пе?"
+          }
+        },
+        "kn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ಸಂಭಾವ್ಯವಾಗಿ ಅಸುರಕ್ಷಿತ ಪಠ್ಯವನ್ನು ಪೇಸ್ಟ್ ಮಾಡಬೇಕೇ?"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "안전하지 않을 수 있는 텍스트를 붙여넣겠습니까?"
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Įklijuoti potencialiai nesaugų tekstą?"
+          }
+        },
+        "ml": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "സുരക്ഷിതമല്ലാത്തേക്കാവുന്ന ടെക്സ്റ്റ് പേസ്റ്റ് ചെയ്യണോ?"
+          }
+        },
+        "mr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "संभाव्यतः असुरक्षित मजकूर पेस्ट करायचा?"
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tampal teks yang mungkin tidak selamat?"
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vil du lime inn tekst som kan være utrygg?"
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mogelijk onveilige tekst plakken?"
+          }
+        },
+        "or": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ସମ୍ଭାବ୍ୟ ଅସୁରକ୍ଷିତ ଟେକ୍ସଟ୍ ପେଷ୍ଟ କରିବେ?"
+          }
+        },
+        "pa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ਸੰਭਾਵੀ ਤੌਰ 'ਤੇ ਅਸੁਰੱਖਿਅਤ ਟੈਕਸਟ ਪੇਸਟ ਕਰਨਾ ਹੈ?"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wkleić potencjalnie niebezpieczny tekst?"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Colar texto potencialmente perigoso?"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Colar texto potencialmente perigoso?"
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lipiți text potențial nesigur?"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вставить потенциально опасный текст?"
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vložiť potenciálne nebezpečný text?"
+          }
+        },
+        "sl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Želite prilepiti morebitno nevarno besedilo?"
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klistra in potentiellt osäker text?"
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "பாதுகாப்பற்றதாக இருக்கக்கூடிய உரையை ஒட்டவா?"
+          }
+        },
+        "te": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "సురక్షితం కాని అవకాశం ఉన్న టెక్స్ట్‌ను పేస్ట్ చేయాలా?"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "วางข้อความที่อาจไม่ปลอดภัยใช่ไหม"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Güvenli olmayabilecek metin yapıştırılsın mı?"
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вставити потенційно небезпечний текст?"
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ممکنہ طور پر غیر محفوظ متن پیسٹ کریں؟"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dán văn bản có thể không an toàn?"
+          }
+        },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要貼上可能不安全的文字嗎？"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要粘贴可能不安全的文本吗？"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要貼上可能不安全的文字嗎？"
+          }
+        }
+      }
+    },
     "Port": {
       "localizations": {
         "ar": {
@@ -34407,6 +35027,316 @@
           "stringUnit": {
             "state": "translated",
             "value": "此系統沒有可在此裝置上啟動的核心。請使用包含4K分頁ARM64核心的封存檔。"
+          }
+        }
+      }
+    },
+    "This text contains line breaks and may run commands as soon as it is pasted.": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "يحتوي هذا النص على فواصل أسطر وقد يشغّل أوامر بمجرد لصقه."
+          }
+        },
+        "bg": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Този текст съдържа нови редове и може да изпълни команди веднага след поставянето му."
+          }
+        },
+        "bn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "এই টেক্সটে লাইন ব্রেক রয়েছে এবং পেস্ট করার সাথে সাথেই কমান্ড চালু হতে পারে।"
+          }
+        },
+        "ca": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aquest text conté salts de línia i pot executar ordres tan bon punt s’enganxi."
+          }
+        },
+        "cs": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tento text obsahuje zalomení řádků a po vložení může okamžitě spustit příkazy."
+          }
+        },
+        "da": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Denne tekst indeholder linjeskift og kan køre kommandoer, så snart den indsættes."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Text enthält Zeilenumbrüche und kann beim Einsetzen sofort Befehle ausführen."
+          }
+        },
+        "el": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Αυτό το κείμενο περιέχει αλλαγές γραμμής και ενδέχεται να εκτελέσει εντολές αμέσως μόλις επικολληθεί."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este texto contiene saltos de línea y podría ejecutar comandos en cuanto se pegue."
+          }
+        },
+        "es-419": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este texto contiene saltos de línea y podría ejecutar comandos en cuanto se pegue."
+          }
+        },
+        "fa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "این متن دارای شکست خط است و ممکن است بلافاصله پس از چسباندن، فرمان‌هایی را اجرا کند."
+          }
+        },
+        "fi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tämä teksti sisältää rivinvaihtoja ja voi suorittaa komentoja heti, kun se sijoitetaan."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce texte contient des sauts de ligne et pourrait exécuter des commandes dès qu’il sera collé."
+          }
+        },
+        "fr-CA": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce texte contient des sauts de ligne et pourrait exécuter des commandes dès qu’il sera collé."
+          }
+        },
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "આ ટેક્સ્ટમાં લાઇન બ્રેક છે અને પેસ્ટ થતાં જ તે કમાન્ડ ચલાવી શકે છે."
+          }
+        },
+        "he": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "טקסט זה מכיל מעברי שורה ועלול להריץ פקודות מיד עם הדבקתו."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस टेक्स्ट में लाइन ब्रेक हैं और पेस्ट करते ही यह कमांड चला सकता है।"
+          }
+        },
+        "hr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ovaj tekst sadrži prijelome redaka i može pokrenuti naredbe čim se zalijepi."
+          }
+        },
+        "hu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ez a szöveg sortöréseket tartalmaz, és a beillesztés pillanatában parancsokat futtathat."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Teks ini berisi jeda baris dan dapat menjalankan perintah segera setelah ditempel."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Questo testo contiene interruzioni di riga e potrebbe eseguire comandi non appena viene incollato."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このテキストには改行が含まれているため、ペーストした時点でコマンドが実行される可能性があります。"
+          }
+        },
+        "kk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Бұл мәтінде жол үзілімдері бар және қойылған бойда пәрмендерді іске қосуы мүмкін."
+          }
+        },
+        "kn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ಈ ಪಠ್ಯದಲ್ಲಿ ಲೈನ್ ಬ್ರೇಕ್‌ಗಳಿವೆ ಮತ್ತು ಪೇಸ್ಟ್ ಮಾಡಿದ ತಕ್ಷಣ ಕಮಾಂಡ್‌ಗಳನ್ನು ರನ್ ಮಾಡಬಹುದು."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 텍스트에는 줄 바꿈이 포함되어 있어 붙여넣는 즉시 명령이 실행될 수 있습니다."
+          }
+        },
+        "lt": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Šiame tekste yra eilučių lūžių, todėl jį įklijavus iškart gali būti vykdomos komandos."
+          }
+        },
+        "ml": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ഈ ടെക്സ്റ്റിൽ ലൈൻ ബ്രേക്കുകൾ ഉള്ളതിനാൽ പേസ്റ്റ് ചെയ്യുമ്പോൾത്തന്നെ കമാൻഡുകൾ റൺ ചെയ്തേക്കാം."
+          }
+        },
+        "mr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "या मजकुरात लाइन ब्रेक आहेत आणि पेस्ट करताच तो कमांड चालवू शकतो."
+          }
+        },
+        "ms": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Teks ini mengandungi pemisah baris dan mungkin menjalankan perintah sebaik sahaja ditampal."
+          }
+        },
+        "nb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Denne teksten inneholder linjeskift og kan kjøre kommandoer så snart den limes inn."
+          }
+        },
+        "nl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deze tekst bevat regeleinden en kan opdrachten uitvoeren zodra hij wordt geplakt."
+          }
+        },
+        "or": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ଏହି ଟେକ୍ସଟରେ ଲାଇନ୍ ବ୍ରେକ୍ ଅଛି ଏବଂ ପେଷ୍ଟ କରିବା ମାତ୍ରେ ଏହା କମାଣ୍ଡ ଚଲାଇପାରେ।"
+          }
+        },
+        "pa": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ਇਸ ਟੈਕਸਟ ਵਿੱਚ ਲਾਈਨ ਬ੍ਰੇਕ ਹਨ ਅਤੇ ਪੇਸਟ ਕਰਦੇ ਹੀ ਇਹ ਕਮਾਂਡਾਂ ਚਲਾ ਸਕਦਾ ਹੈ।"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ten tekst zawiera podziały wierszy i może uruchomić polecenia od razu po wklejeniu."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este texto contém quebras de linha e pode executar comandos assim que for colado."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este texto contém quebras de linha e pode executar comandos assim que for colado."
+          }
+        },
+        "ro": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Acest text conține întreruperi de rând și poate executa comenzi imediat ce este lipit."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Этот текст содержит разрывы строк и может выполнить команды сразу после вставки."
+          }
+        },
+        "sk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tento text obsahuje zalomenia riadkov a po vložení môže okamžite spustiť príkazy."
+          }
+        },
+        "sl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To besedilo vsebuje prelome vrstic in lahko izvede ukaze takoj, ko ga prilepite."
+          }
+        },
+        "sv": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Den här texten innehåller radbrytningar och kan köra kommandon så fort den klistras in."
+          }
+        },
+        "ta": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "இந்த உரையில் வரி முறிவுகள் உள்ளன, ஒட்டியவுடன் கட்டளைகளை இயக்கக்கூடும்."
+          }
+        },
+        "te": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ఈ టెక్స్ట్‌లో లైన్ బ్రేక్‌లు ఉన్నాయి, పేస్ట్ చేసిన వెంటనే కమాండ్‌లను రన్ చేయవచ్చు."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ข้อความนี้มีการขึ้นบรรทัดใหม่และอาจเรียกใช้คำสั่งทันทีที่วาง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu metin satır sonları içeriyor ve yapıştırıldığı anda komutları çalıştırabilir."
+          }
+        },
+        "uk": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Цей текст містить розриви рядків і може виконати команди одразу після вставлення."
+          }
+        },
+        "ur": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "اس متن میں لائن بریکس ہیں اور پیسٹ کرتے ہی یہ کمانڈز چلا سکتا ہے۔"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Văn bản này chứa dấu ngắt dòng và có thể chạy lệnh ngay khi được dán."
+          }
+        },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此文字包含換行，貼上後可能會立即執行指令。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此文本包含换行，粘贴后可能会立即执行命令。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此文字包含換行，貼上後可能會立即執行指令。"
           }
         }
       }

@@ -709,6 +709,9 @@ nonisolated enum ContainerProvisioner {
             if ! grep -qF /run/host-bin "$nu_config"; then
                 printf '%s\n' '$env.PATH = ($env.PATH | split row (char esep) | append "/run/host-bin" | uniq)' >> "$nu_config"
             fi
+            if ! grep -qF WAYLAND_DISPLAY "$nu_config"; then
+                printf '%s\n' '$env.WAYLAND_DISPLAY = ($env.WAYLAND_DISPLAY? | default "/run/host/wayland-0")' >> "$nu_config"
+            fi
             ;;
         esac
     }

@@ -330,6 +330,7 @@ final class LinuxSystem {
         let previousRuntime = detachRuntimeForShutdown()
         Self.moveToTrash(Self.rootDirectoryURL)
         Self.moveToTrash(Self.downloadStagingDirectoryURL)
+        HostPasteStaging.removeAllFiles()
         tearDownInBackground(previousRuntime)
         installedContainer = nil
         activeInitMode = nil
@@ -399,6 +400,7 @@ final class LinuxSystem {
                 "LANG": "C.UTF-8",
                 "TZ": TimeZone.current.identifier,
                 "BROWSER": "/run/host-bin/xdg-open",
+                "WAYLAND_DISPLAY": "/run/host/wayland-0",
             ])
             return SessionHandle(terminal: terminal, process: process)
         } catch {
@@ -633,6 +635,10 @@ final class LinuxSystem {
         setupTerminal = nil
         let current = runtime
         runtime = nil
+        if let current {
+            HostClipboard.shared.detach(from: current)
+            HostPasteStaging.shared.detach(from: current)
+        }
         return current
     }
 
@@ -693,7 +699,8 @@ final class LinuxSystem {
                 Task { @MainActor in
                     LinuxSystem.shared.runtimeDidHalt(reason, generation: generation, boot: boot)
                 }
-            }
+            },
+            clipboard: HostClipboard.shared
         )
         let hostname = writesHostname ? metadata.name : nil
         let bootedRuntime = try await LinuxRuntime.boot(configuration) { runtime in
@@ -981,6 +988,8 @@ final class LinuxSystem {
         onWillShutdown?()
         setupTerminal?.close()
         setupTerminal = nil
+        HostClipboard.shared.detach(from: halted)
+        HostPasteStaging.shared.detach(from: halted)
         return Task {
             await shutDownRuntime(halted)
             if runtime === halted {
@@ -1194,9 +1203,24 @@ final class LinuxSystem {
         if let hostname {
             try await runtime.fileSystem.writeFile("/etc/hostname", contents: Data("\(hostname)\n".utf8), permissions: 0o644)
         }
+        if HostPasteStaging.prepareHostDirectory() {
+            var mountedVirtioFS = false
+            do {
+                try await runtime.mount(HostPasteStaging.hostDirectory, at: HostPasteStaging.guestDirectory, readOnly: true)
+                mountedVirtioFS = true
+            } catch let error as LinuxError where error == .ENODEV {
+                try? await runtime.fileSystem.createDirectory(
+                    HostPasteStaging.guestDirectory,
+                    permissions: 0o755,
+                    withIntermediateDirectories: true
+                )
+            }
+            HostPasteStaging.shared.attach(to: runtime, usesVirtioFS: mountedVirtioFS)
+        }
         do {
             try await runtime.registerDevice(at: "/dev/clipboard", handler: ClipboardDevice())
         } catch let error as LinuxError where error == .ENODEV {}
+        HostClipboard.shared.attach(to: runtime)
         try await HostCommands.register(on: runtime)
     }
 }

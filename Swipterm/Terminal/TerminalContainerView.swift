@@ -1,3 +1,4 @@
+import GhosttyTerminal
 import Observation
 import SwiftUI
 import UIKit
@@ -9,6 +10,7 @@ struct TerminalContainerView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var splitState = TerminalSplitPresentationState()
     @State private var showSettings = false
+    @State private var pendingPaste: TerminalClipboardConfirmationRequest?
 
     var body: some View {
         TerminalSplitViewRepresentable(
@@ -33,6 +35,26 @@ struct TerminalContainerView: View {
                 SettingsView()
             }
         }
+        .alert(
+            "Paste Potentially Unsafe Text?",
+            isPresented: Binding {
+                pendingPaste != nil
+            } set: { isPresented in
+                if !isPresented {
+                    pendingPaste = nil
+                }
+            },
+            presenting: pendingPaste
+        ) { request in
+            Button("Paste") {
+                request.respond(allow: true)
+            }
+            Button("Cancel", role: .cancel) {
+                request.respond(allow: false)
+            }
+        } message: { _ in
+            Text("This text contains line breaks and may run commands as soon as it is pasted.")
+        }
         .onChange(of: showSettings, initial: true) { _, isPresented in
             splitState.isSettingsPresented = isPresented
         }
@@ -56,6 +78,9 @@ struct TerminalContainerView: View {
         session.extras.onOpenURL = { urlString, _ in
             guard let url = URL(string: urlString) else { return }
             system.pendingOpenURL = url
+        }
+        session.extras.onPasteConfirmation = { request in
+            pendingPaste = request
         }
         session.extras.onCommandKey = { key in
             switch key {

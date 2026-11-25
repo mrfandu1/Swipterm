@@ -14,11 +14,13 @@ final class TerminalExtras: NSObject,
     TerminalSurfaceCommandFinishedDelegate,
     TerminalSurfaceLifecycleDelegate,
     TerminalSurfaceColorChangeDelegate,
-    TerminalSurfaceOpenURLDelegate
+    TerminalSurfaceOpenURLDelegate,
+    TerminalSurfaceClipboardConfirmationDelegate
 {
     @ObservationIgnored weak var state: TerminalViewState?
     @ObservationIgnored var onCommandKey: ((String) -> Bool)?
     @ObservationIgnored var onOpenURL: ((String, TerminalOpenURLKind) -> Void)?
+    @ObservationIgnored var onPasteConfirmation: ((TerminalClipboardConfirmationRequest) -> Void)?
     @ObservationIgnored var onDesktopNotification: ((String, String) -> Void)?
 
     var title: String = ""
@@ -73,5 +75,13 @@ final class TerminalExtras: NSObject,
 
     func terminalDidRequestOpenURL(_ url: String, kind: TerminalOpenURLKind) {
         onOpenURL?(url, kind)
+    }
+
+    func terminalDidRequestClipboardConfirmation(_ request: TerminalClipboardConfirmationRequest) {
+        guard request.kind == .paste, let onPasteConfirmation else {
+            request.respond(allow: false)
+            return
+        }
+        onPasteConfirmation(request)
     }
 }
