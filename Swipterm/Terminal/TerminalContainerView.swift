@@ -13,23 +13,27 @@ struct TerminalContainerView: View {
     @State private var pendingPaste: TerminalClipboardConfirmationRequest?
 
     var body: some View {
+        let isRunning = system.state == .running
         TerminalSplitViewRepresentable(
             sessionManager: sessionManager,
             splitState: splitState,
             actualHorizontalSizeClass: horizontalSizeClass,
+            isRunning: isRunning,
             onOpenSettings: { showSettings = true },
             onSetupCallbacks: setupCallbacks
         )
         .ignoresSafeArea()
         .modifier(HorizontalBarsOnlyModifier())
         .background {
-            TerminalKeyboardShortcuts(
-                onNewSession: { sessionManager.addSession() },
-                onCloseSession: closeActiveSession,
-                onPreviousSession: { sessionManager.selectAdjacentSession(offset: -1) },
-                onNextSession: { sessionManager.selectAdjacentSession(offset: 1) },
-                onOpenSettings: { showSettings = true }
-            )
+            if isRunning {
+                TerminalKeyboardShortcuts(
+                    onNewSession: { sessionManager.addSession() },
+                    onCloseSession: closeActiveSession,
+                    onPreviousSession: { sessionManager.selectAdjacentSession(offset: -1) },
+                    onNextSession: { sessionManager.selectAdjacentSession(offset: 1) },
+                    onOpenSettings: { showSettings = true }
+                )
+            }
         }
         .sheet(isPresented: $showSettings) {
             NavigationStack {
@@ -84,6 +88,7 @@ struct TerminalContainerView: View {
             pendingPaste = request
         }
         session.extras.onCommandKey = { key in
+            guard system.state == .running else { return false }
             switch key {
             case "n", "t":
                 sessionManager.addSession()
@@ -124,6 +129,7 @@ private struct TerminalSplitViewRepresentable: UIViewControllerRepresentable {
     let sessionManager: TerminalSessionManager
     let splitState: TerminalSplitPresentationState
     let actualHorizontalSizeClass: UserInterfaceSizeClass?
+    let isRunning: Bool
     let onOpenSettings: () -> Void
     let onSetupCallbacks: (TerminalSession) -> Void
 
@@ -139,8 +145,8 @@ private struct TerminalSplitViewRepresentable: UIViewControllerRepresentable {
         let splitViewController = UISplitViewController(style: .doubleColumn)
         splitViewController.delegate = context.coordinator
         splitViewController.primaryBackgroundStyle = .sidebar
-        splitViewController.presentsWithGesture = true
-        splitViewController.displayModeButtonVisibility = .always
+        splitViewController.presentsWithGesture = isRunning
+        splitViewController.displayModeButtonVisibility = isRunning ? .always : .never
         splitViewController.preferredDisplayMode = .secondaryOnly
         splitViewController.minimumPrimaryColumnWidth = 260
         splitViewController.preferredPrimaryColumnWidth = 300
@@ -191,6 +197,20 @@ private struct TerminalSplitViewRepresentable: UIViewControllerRepresentable {
             splitViewController.traitOverrides.layoutDirection = isRTL ? .rightToLeft : .leftToRight
         #endif
         applyLayoutBehavior(to: splitViewController, coordinator: context.coordinator)
+        applyRunningState(to: splitViewController)
+    }
+
+    private func applyRunningState(to splitViewController: UISplitViewController) {
+        if splitViewController.presentsWithGesture != isRunning {
+            splitViewController.presentsWithGesture = isRunning
+        }
+        let buttonVisibility: UISplitViewController.DisplayModeButtonVisibility = isRunning ? .always : .never
+        if splitViewController.displayModeButtonVisibility != buttonVisibility {
+            splitViewController.displayModeButtonVisibility = buttonVisibility
+        }
+        if !isRunning, splitViewController.displayMode != .secondaryOnly {
+            splitViewController.hide(.primary)
+        }
     }
 
     private func applyLayoutBehavior(to splitViewController: UISplitViewController, coordinator: Coordinator) {
@@ -250,6 +270,7 @@ private struct TerminalSplitViewRepresentable: UIViewControllerRepresentable {
 }
 
 private struct TerminalDetailView: View {
+    private let system = LinuxSystem.shared
     let sessionManager: TerminalSessionManager
     let splitState: TerminalSplitPresentationState
     let onSetupCallbacks: (TerminalSession) -> Void
@@ -257,11 +278,12 @@ private struct TerminalDetailView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     var body: some View {
+        let isRunning = system.state == .running
         GeometryReader { column in
             terminalContent
-                .toolbar { toolbar(columnWidth: column.size.width) }
+                .toolbar { toolbar(columnWidth: column.size.width, isRunning: isRunning) }
         }
-        .navigationTitle(horizontalSizeClass == .regular ? "" : (sessionManager.activeSession?.title ?? ""))
+        .navigationTitle(isRunning && horizontalSizeClass == .regular ? "" : (sessionManager.activeSession?.title ?? ""))
         .navigationBarTitleDisplayMode(.inline)
         .modifier(HorizontalBarsOnlyModifier())
     }
@@ -288,27 +310,29 @@ private struct TerminalDetailView: View {
     }
 
     @ToolbarContentBuilder
-    private func toolbar(columnWidth: CGFloat) -> some ToolbarContent {
-        if !splitState.isSidebarVisible {
-            ToolbarItem(placement: .topBarLeading) {
-                Button {
-                    sessionManager.addSession()
-                } label: {
-                    Label("New Session", systemImage: "plus")
+    private func toolbar(columnWidth: CGFloat, isRunning: Bool) -> some ToolbarContent {
+        if isRunning {
+            if !splitState.isSidebarVisible {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        sessionManager.addSession()
+                    } label: {
+                        Label("New Session", systemImage: "plus")
+                    }
                 }
             }
-        }
-        if horizontalSizeClass == .regular {
-            let tabBar = TerminalTabBar(
-                sessionManager: sessionManager,
-                showsActiveSessionOnly: splitState.isSidebarVisible,
-                columnWidth: columnWidth
-            )
-            if #available(iOS 26.0, *) {
-                ToolbarItem(placement: .principal) { tabBar }
-                    .sharedBackgroundVisibility(.hidden)
-            } else {
-                ToolbarItem(placement: .principal) { tabBar }
+            if horizontalSizeClass == .regular {
+                let tabBar = TerminalTabBar(
+                    sessionManager: sessionManager,
+                    showsActiveSessionOnly: splitState.isSidebarVisible,
+                    columnWidth: columnWidth
+                )
+                if #available(iOS 26.0, *) {
+                    ToolbarItem(placement: .principal) { tabBar }
+                        .sharedBackgroundVisibility(.hidden)
+                } else {
+                    ToolbarItem(placement: .principal) { tabBar }
+                }
             }
         }
     }
