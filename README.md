@@ -7,14 +7,20 @@
 <p align="center">A Linux environment and Ghostty-based terminal for iOS.</p>
 
 <p align="center">
+  <a href="https://testflight.apple.com/join/Sqgw9nc5"><img src="assets/readme/testflight-badge.svg" alt="Join the beta on TestFlight" height="40"></a>
   <a href="https://github.com/swipt-automation/Swipterm/releases/tag/nightly"><img src="assets/readme/github-releases-badge.svg" alt="Get it on GitHub Releases" height="40"></a>
 </p>
 
-## Requirements
+## Features
 
-- iOS 17.0+
+- **Any distribution, any Linux kernel**: Boots unmodified ARM64 Linux kernels from built-in distros or your own rootfs.
+- **Fast out of the box**: Powered by a custom ARM64 emulator in [SwiptermKit](https://github.com/swipt-automation/SwiptermKit) that stays fast even without JIT.
+- **Optional automatic JIT**: Automatically enables native ARM64 JIT via Swipt on sideloaded builds.
+- **Native Ghostty terminal**: Built on `libghostty` with native iOS host integration.
 
 ## Installation
+
+Join the [Swipterm public beta](https://testflight.apple.com/join/Sqgw9nc5) on TestFlight.
 
 Add the [Nightly](https://github.com/swipt-automation/Swipterm/releases/tag/nightly) source to SideStore or AltStore:
 
@@ -23,6 +29,14 @@ https://github.com/swipt-automation/Swipterm/releases/download/nightly/altstore.
 ```
 
 Or download [Swipterm.ipa](https://github.com/swipt-automation/Swipterm/releases/download/nightly/Swipterm.ipa) and sideload it.
+
+## Benchmarks
+
+| Benchmark                                     | Swipterm (with JIT) | Swipterm | iSH-arm64           | iSH                 |
+|-----------------------------------------------|---------------------|----------|---------------------|---------------------|
+| Lua 5.4.9 (`make -j6`)                        | **25.57s**          | 41.04s   | 39.86s              | 88.21s              |
+| Git 2.52.0 (`tar -xf` + `git add`)            | **7.63s**           | 14.41s   | 19.52s              | 48.38s              |
+| sing-box 1.14.4 (`go build -p 6`, cold cache) | **292.68s**         | 411.90s  | Crashed (`SIGSEGV`) | Crashed (`SIGSEGV`) |
 
 ## License
 
