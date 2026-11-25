@@ -55,6 +55,8 @@ func main() {
 	selectedDevices := flag.String("devices", strings.Join(deviceNames, ","), "comma-separated device names")
 	selectedLanguages := flag.String("languages", "", "comma-separated app languages (default: all app languages)")
 	parallel := flag.Int("parallel", 2, "maximum number of active screenshot simulators")
+	simslim, simslimErr := exec.LookPath("simslim")
+	slim := flag.Bool("simslim", simslimErr == nil, "boot each screenshot simulator with SimSlim when available")
 	output := flag.String("output", "screenshots", "directory for the locale/device screenshot tree")
 	skipBuild := flag.Bool("skip-build", false, "reuse previously built screenshot test products")
 	resume := flag.Bool("resume", false, "capture only missing or invalid screenshots")
@@ -66,6 +68,11 @@ func main() {
 	if *parallel < 1 {
 		log.Fatal("-parallel must be positive")
 	}
+	if !*slim {
+		simslim = ""
+	} else if simslimErr != nil {
+		log.Fatal("-simslim requires the simslim CLI: ", simslimErr)
+	}
 
 	jobs, err := planCapture(*selectedDevices, *selectedLanguages, *output, *resume, *terminalOnly)
 	if err != nil {
@@ -73,7 +80,7 @@ func main() {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := runScreenshots(ctx, jobs, *parallel, *skipBuild); err != nil {
+	if err := runScreenshots(ctx, jobs, *parallel, *skipBuild, simslim); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -119,7 +126,7 @@ func planCapture(selectedDevices, selectedLanguages, output string, resume, term
 	return jobs, nil
 }
 
-func runScreenshots(ctx context.Context, jobs []captureJob, parallel int, skipBuild bool) error {
+func runScreenshots(ctx context.Context, jobs []captureJob, parallel int, skipBuild bool, simslim string) error {
 	if len(jobs) == 0 {
 		log.Print("all requested screenshots are present")
 		return nil
@@ -160,7 +167,7 @@ schedule:
 			if ctx.Err() != nil {
 				return
 			}
-			if err := captureScreenshots(ctx, testRun, job); err != nil {
+			if err := captureScreenshots(ctx, testRun, job, simslim); err != nil {
 				results[index] = fmt.Errorf("%s: %w", job.device.name, err)
 				log.Print(results[index])
 			}
@@ -204,7 +211,7 @@ func findTestRun() (string, error) {
 	return filepath.Abs(newest)
 }
 
-func captureScreenshots(ctx context.Context, testRun string, job captureJob) (err error) {
+func captureScreenshots(ctx context.Context, testRun string, job captureJob, simslim string) (err error) {
 	directory, err := os.MkdirTemp(resultsPath, job.device.name+"-")
 	if err != nil {
 		return err
@@ -216,7 +223,7 @@ func captureScreenshots(ctx context.Context, testRun string, job captureJob) (er
 			err = os.RemoveAll(directory)
 		}
 	}()
-	simulator, err := prepareSimulator(ctx, job.device, directory)
+	simulator, err := prepareSimulator(ctx, job.device, directory, simslim)
 	if err != nil {
 		return err
 	}

@@ -43,7 +43,6 @@ var devices = []captureDevice{
 	{name: "iphone-home-medium", deviceType: "iPhone-SE-3rd-generation", orientation: "portrait", sizes: []captureSize{{750, 1334}}},
 	{name: "iphone-4", deviceType: "iPhone-SE-3rd-generation", displayType: "iPhone-SE", terminalFontSize: 8, orientation: "portrait", sizes: []captureSize{{640, 1136}}},
 	{name: "duo-inner", deviceType: "iPhone-Duo", orientation: "landscapeLeft", pose: "open", sizes: []captureSize{{2853, 2007}}},
-	{name: "duo-outer", deviceType: "iPhone-Duo", orientation: "portrait", pose: "closed", sizes: []captureSize{{1398, 2034}}},
 	{name: "ipad", deviceType: "iPad-Pro-13-inch-M5-12GB", orientation: "landscapeLeft", sizes: []captureSize{{2752, 2064}, {2732, 2048}}},
 	{name: "ipad-12.9", deviceType: "iPad-Pro-12-9-inch-6th-generation-8GB", orientation: "landscapeLeft", sizes: []captureSize{{2732, 2048}}},
 	{name: "ipad-11", deviceType: "iPad-Pro-11-inch-M5-12GB", orientation: "landscapeLeft", sizes: []captureSize{{2420, 1668}, {2388, 1668}, {2360, 1640}, {2266, 1488}, {2316, 1512}}},
@@ -147,7 +146,7 @@ func compareRuntimeVersions(first, second string) int {
 	return slices.Compare(lhs[:], rhs[:])
 }
 
-func prepareSimulator(ctx context.Context, device captureDevice, directory string) (_ captureSimulator, err error) {
+func prepareSimulator(ctx context.Context, device captureDevice, directory, simslim string) (_ captureSimulator, err error) {
 	deviceType := "com.apple.CoreSimulator.SimDeviceType." + device.deviceType
 	runtime, err := latestRuntime(ctx, deviceType)
 	if err != nil {
@@ -191,7 +190,7 @@ func prepareSimulator(ctx context.Context, device captureDevice, directory strin
 	if err := configureSimulatorPreferences(device, dataPath); err != nil {
 		return captureSimulator{}, err
 	}
-	if err := simulator.boot(ctx); err != nil {
+	if err := simulator.boot(ctx, simslim); err != nil {
 		return captureSimulator{}, err
 	}
 	if device.pose != "" {
@@ -202,8 +201,29 @@ func prepareSimulator(ctx context.Context, device captureDevice, directory strin
 	return simulator, nil
 }
 
-func (simulator captureSimulator) boot(ctx context.Context) error {
-	if _, err := simulator.command(ctx, "bootstatus", simulator.udid, "-b"); err != nil {
+func (simulator captureSimulator) boot(ctx context.Context, simslim string) error {
+	if simslim != "" {
+		cmd := exec.CommandContext(ctx, simslim, "on", simulator.udid)
+		if simulator.profiles != "" {
+			// SimSlim runs simctl internally. Give it the same private device type used at creation.
+			bin, err := filepath.Abs("internal/cmd/screenshots/simslim-bin")
+			if err != nil {
+				return err
+			}
+			xcrun, err := exec.LookPath("xcrun")
+			if err != nil {
+				return err
+			}
+			cmd.Env = append(cmd.Environ(), "SWIPTERM_XCRUN="+xcrun, "SWIPTERM_SIMULATOR_PROFILES="+simulator.profiles,
+				"PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+		}
+		// Stop the nested simctl commands before cleanup deletes the device on cancellation.
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+		cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
+		if err := runCommand(cmd); err != nil {
+			return err
+		}
+	} else if _, err := simulator.command(ctx, "bootstatus", simulator.udid, "-b"); err != nil {
 		return err
 	}
 	clock := time.Date(2007, time.January, 9, 9, 41, 0, 0, time.Local).Format("2006-01-02T15:04:05.000Z07:00")

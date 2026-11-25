@@ -1,0 +1,8 @@
+#!/bin/sh
+set -eu
+
+if [ "${1:-}" = simctl ]; then
+    shift
+    exec "$SWIPTERM_XCRUN" simctl --profiles "$SWIPTERM_SIMULATOR_PROFILES" "$@"
+fi
+exec "$SWIPTERM_XCRUN" "$@"
