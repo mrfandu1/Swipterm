@@ -1,93 +1,97 @@
 import ImageIO
+import notify
 import UIKit
 import UniformTypeIdentifiers
 import XCTest
 
 final class ScreenshotTests: XCTestCase {
-    private static let locales = [
-        "en": "en_US",
-        "fa": "fa_IR",
-        "ru": "ru_RU",
-        "zh-Hans": "zh_CN",
-        "zh-Hant": "zh_TW",
-    ]
-
-    private enum Screen: String, CaseIterable {
-        case setup
-        case terminal
-
-        var attachmentName: String {
-            switch self {
-            case .setup: "01-Setup"
-            case .terminal: "02-Terminal"
+    private struct CapturePlan: Decodable {
+        struct Batch: Decodable {
+            enum Screen: String, Decodable {
+                case setup, terminal
             }
+
+            let screen: Screen
+            let attachment: String
+            let languages: [String]
         }
+
+        enum Orientation: String, Decodable {
+            case portrait, landscapeLeft
+        }
+
+        let scenes: [Batch]
+        let orientation: Orientation
+        let width: Int
+        let height: Int
+        let innerDisplay: Bool
+        let terminalFontSize: Int?
     }
 
     override func setUpWithError() throws {
         continueAfterFailure = false
+        #if !SWIPTERM_STORE_SCREENSHOTS || !targetEnvironment(simulator)
+            throw XCTSkip("Use make screenshots_ios to build the offline screenshot app for Simulator.")
+        #endif
     }
 
     @MainActor
-    func testStoreScreenshots() throws {
-        let environment = ProcessInfo.processInfo.environment
-        let languages = (environment["SCREENSHOT_LANGUAGES"] ?? "en,fa,ru,zh-Hans,zh-Hant")
-            .split(separator: ",")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-        XCTAssertFalse(languages.isEmpty, "SCREENSHOT_LANGUAGES must contain a supported language")
-
-        let orientation: UIDeviceOrientation
-        switch environment["SCREENSHOT_ORIENTATION"] ?? "portrait" {
-        case "portrait": orientation = .portrait
-        case "landscapeLeft": orientation = .landscapeLeft
-        case let name:
-            XCTFail("Unsupported screenshot orientation: \(name)")
-            return
+    func testStoreScreenshots() async throws {
+        let json = try XCTUnwrap(ProcessInfo.processInfo.environment["SCREENSHOT_PLAN"], "Use make screenshots_ios to supply the capture plan.")
+        let plan = try JSONDecoder().decode(CapturePlan.self, from: Data(json.utf8))
+        XCUIDevice.shared.orientation = plan.orientation == .portrait ? .portrait : .landscapeLeft
+        for batch in plan.scenes {
+            try await capture(batch, plan: plan)
         }
-        let expectedWidth = try expectedDimension("SCREENSHOT_WIDTH", in: environment)
-        let expectedHeight = try expectedDimension("SCREENSHOT_HEIGHT", in: environment)
-        XCUIDevice.shared.orientation = orientation
+    }
 
-        for language in languages {
-            let locale = try XCTUnwrap(Self.locales[language], "Unsupported screenshot language: \(language)")
-            for screen in Screen.allCases {
-                let app = XCUIApplication()
-                app.launchArguments = [
-                    "--store-screenshot", screen.rawValue,
-                    "-AppleLanguages", "(\(language))",
-                    "-AppleLocale", locale,
-                ]
-                app.launch()
-                defer { app.terminate() }
+    @MainActor
+    private func capture(_ batch: CapturePlan.Batch, plan: CapturePlan) async throws {
+        let channel = "io.nekohasekai.swipterm.screenshot." + UUID().uuidString
+        var token: Int32 = 0
+        XCTAssertEqual(notify_register_check(channel, &token), UInt32(NOTIFY_STATUS_OK))
+        defer { notify_cancel(token) }
 
-                let identifier = "store-screenshot-\(screen.rawValue)"
-                let landmark = switch screen {
+        let app = XCUIApplication()
+        app.launchArguments = ["--store-screenshot", batch.screen.rawValue, "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launchEnvironment["SWIPTERM_SCREENSHOT_BATCH"] = channel
+        app.launchEnvironment["SWIPTERM_SCREENSHOT_LANGUAGES"] = batch.languages.joined(separator: ",")
+        if let size = plan.terminalFontSize {
+            app.launchEnvironment["SWIPTERM_SCREENSHOT_FONT_SIZE"] = String(size)
+        }
+        let started = XCTDarwinNotificationExpectation(notificationName: "\(channel).ready.0")
+        app.launch()
+        defer { app.terminate() }
+        await fulfillment(of: [started], timeout: 20)
+
+        let display = try screenshotDisplay(plan)
+        for (offset, language) in batch.languages.enumerated() {
+            let index = offset + 1
+            let ready = XCTDarwinNotificationExpectation(notificationName: "\(channel).ready.\(index)")
+            XCTAssertEqual(notify_set_state(token, UInt64(index)), UInt32(NOTIFY_STATUS_OK))
+            XCTAssertEqual(notify_post(channel), UInt32(NOTIFY_STATUS_OK))
+            await fulfillment(of: [ready], timeout: 20)
+
+            if offset == 0 {
+                let identifier = "store-screenshot-\(batch.screen.rawValue)"
+                let landmark = switch batch.screen {
                 case .setup: app.textFields[identifier].firstMatch
                 case .terminal: app.descendants(matching: .any)[identifier].firstMatch
                 }
-                XCTAssertTrue(landmark.waitForExistence(timeout: 15), "\(language) \(identifier) did not appear")
-
-                let image = screenshot(of: app)
-                let capturedWidth = Int((image.size.width * image.scale).rounded())
-                let capturedHeight = Int((image.size.height * image.scale).rounded())
-                // XCTest omits the leftmost column and bottom row of the iPhone Duo inner display.
-                let extendEdges = expectedWidth == 2007 && expectedHeight == 2853
-                    && capturedWidth == 2006 && capturedHeight == 2852
-                let width = capturedWidth + (extendEdges ? 1 : 0)
-                let height = capturedHeight + (extendEdges ? 1 : 0)
-                let name = "\(language)__\(screen.attachmentName)"
-                XCTAssertEqual(width > height, orientation.isLandscape, "\(name) is \(width) × \(height)")
-                if let expectedWidth {
-                    XCTAssertEqual(width, expectedWidth, "\(name) width")
+                XCTAssertTrue(landmark.waitForExistence(timeout: 15), "\(identifier) did not appear")
+                if batch.screen == .terminal {
+                    try await prepareEnglishKeyboard(in: app)
                 }
-                if let expectedHeight {
-                    XCTAssertEqual(height, expectedHeight, "\(name) height")
-                }
-
-                let attachment = try XCTAttachment(
-                    data: opaquePNG(image, width: width, height: height, extendEdges: extendEdges),
-                    uniformTypeIdentifier: UTType.png.identifier
-                )
+            }
+            try autoreleasepool {
+                let image = display.screenshot().image
+                let size = image.pixelSize
+                let extendEdges = plan.innerDisplay && size.width == plan.width - 1 && size.height == plan.height - 1
+                let name = "\(language)__\(batch.attachment)"
+                XCTAssertTrue(extendEdges || (size.width == plan.width && size.height == plan.height),
+                              "\(name) expected \(plan.width) × \(plan.height), captured \(size.width) × \(size.height)")
+                let data = try opaquePNG(image, width: plan.width, height: plan.height, extendEdges: extendEdges)
+                let attachment = XCTAttachment(data: data, uniformTypeIdentifier: UTType.png.identifier)
                 attachment.name = name
                 attachment.lifetime = .keepAlways
                 add(attachment)
@@ -95,20 +99,42 @@ final class ScreenshotTests: XCTestCase {
         }
     }
 
-    private func expectedDimension(_ name: String, in environment: [String: String]) throws -> Int? {
-        guard let value = environment[name] else { return nil }
-        let dimension = try XCTUnwrap(Int(value), "\(name) must be a positive integer")
-        XCTAssertGreaterThan(dimension, 0, "\(name) must be a positive integer")
-        return dimension
+    @MainActor
+    private func prepareEnglishKeyboard(in app: XCUIApplication) async throws {
+        // SpringBoard hosts the system keyboard; XCTest can also expose it inside the app.
+        let hosts = [app, XCUIApplication(bundleIdentifier: "com.apple.springboard")]
+        let continueButtons = hosts.map { $0.descendants(matching: .any)["Continue"].firstMatch }
+        let letterRows = hosts.map { host in
+            ["q", "w", "y"].map { letter in
+                host.keys.matching(NSPredicate(format: "label ==[c] %@ OR identifier ==[c] %@", letter, letter)).firstMatch
+            }
+        }
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: .seconds(20))
+        var dismissedIntroduction = false
+        while clock.now < deadline {
+            if let button = continueButtons.first(where: { $0.exists && $0.isHittable }) {
+                if !dismissedIntroduction {
+                    button.tap()
+                    dismissedIntroduction = true
+                }
+            } else if letterRows.contains(where: { keys in keys.allSatisfy { $0.exists && $0.isHittable } }) {
+                return
+            }
+            try await Task.sleep(for: .milliseconds(200))
+        }
+        XCTFail("The English keyboard did not expose hittable Q, W and Y keys (dismissed keyboard introduction: \(dismissedIntroduction))")
     }
 
     @MainActor
-    private func screenshot(of app: XCUIApplication) -> UIImage {
-        let window = app.windows.firstMatch.frame.size
-        // The main screen refers to iPhone Duo's outer display even when its inner display is active.
-        return XCUIScreen.screens.lazy.map { $0.screenshot().image }.first { image in
-            abs(image.size.width - window.width) < 1 && abs(image.size.height - window.height) < 1
-        } ?? XCUIScreen.main.screenshot().image
+    private func screenshotDisplay(_ plan: CapturePlan) throws -> XCUIScreen {
+        guard plan.innerDisplay else { return .main }
+        // XCTest designates the outer screen as main even when the inner screen is active.
+        return try XCTUnwrap(XCUIScreen.screens.first { display in
+            let size = display.screenshot().image.pixelSize
+            return (size.width == plan.width && size.height == plan.height)
+                || (size.width == plan.width - 1 && size.height == plan.height - 1)
+        }, "The iPhone Duo inner display is unavailable in landscape")
     }
 
     @MainActor
@@ -127,6 +153,8 @@ final class ScreenshotTests: XCTestCase {
         context.scaleBy(x: image.scale, y: -image.scale)
         UIGraphicsPushContext(context)
         if extendEdges {
+            // XCTest omits the left and bottom edge pixels on the Duo inner display.
+            // Extend those edges by one pixel without scaling the captured content.
             let pixel = 1 / image.scale
             image.draw(at: CGPoint(x: 0, y: pixel))
             image.draw(at: CGPoint(x: pixel, y: pixel))
@@ -142,5 +170,11 @@ final class ScreenshotTests: XCTestCase {
         try CGImageDestinationAddImage(destination, XCTUnwrap(context.makeImage()), nil)
         XCTAssertTrue(CGImageDestinationFinalize(destination))
         return data as Data
+    }
+}
+
+private extension UIImage {
+    var pixelSize: (width: Int, height: Int) {
+        (Int((size.width * scale).rounded()), Int((size.height * scale).rounded()))
     }
 }

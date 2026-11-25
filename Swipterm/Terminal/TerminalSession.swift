@@ -94,21 +94,19 @@ final class TerminalSession: Identifiable {
 
     func beginStart() {
         startTask = Task {
-            await start()
-        }
-    }
-
-    func start() async {
-        #if SWIPTERM_STORE_SCREENSHOTS && targetEnvironment(simulator)
-            if StoreScreenshot.current == .terminal {
-                session.receive(StoreScreenshot.transcript(username: SetupView.fallbackUsername))
+            #if SWIPTERM_STORE_SCREENSHOTS && targetEnvironment(simulator)
+                session.receive(StoreScreenshot.loginScreen)
                 phase = .running
                 hasVisibleOutput = true
                 surfaceView.accessibilityIdentifier = "store-screenshot-terminal"
                 surfaceView.isAccessibilityElement = true
-                return
-            }
-        #endif
+            #else
+                await start()
+            #endif
+        }
+    }
+
+    private func start() async {
         let session = session
         let relay = relay
         let firstPtyOutput = OnceFlag()
@@ -272,13 +270,22 @@ enum TerminalAppearance {
 
     static func fontConfiguration() -> TerminalConfiguration {
         let settings = AppSettings.shared
-        let size = Float(settings.fontSize)
+        #if SWIPTERM_STORE_SCREENSHOTS && targetEnvironment(simulator)
+            let size = ProcessInfo.processInfo.environment["SWIPTERM_SCREENSHOT_FONT_SIZE"].flatMap(Float.init) ?? Float(settings.fontSize)
+        #else
+            let size = Float(settings.fontSize)
+        #endif
         let family = settings.fontFollowTheme ? "" : settings.fontFamily
         return TerminalConfiguration { builder in
             if !family.isEmpty {
                 builder.withFontFamily(family)
             }
             builder.withFontSize(size)
+            #if SWIPTERM_STORE_SCREENSHOTS && targetEnvironment(simulator)
+                // Capture the focused cursor in its visible phase.
+                builder.withCursorStyle(.block)
+                builder.withCursorStyleBlink(false)
+            #endif
         }
     }
 }

@@ -4,7 +4,11 @@ import SwiftUI
 struct SwiptermApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            #if SWIPTERM_STORE_SCREENSHOTS && targetEnvironment(simulator)
+                StoreScreenshotBatch { ContentView() }
+            #else
+                ContentView()
+            #endif
         }
     }
 }
@@ -13,6 +17,10 @@ private struct ContentView: View {
     private let system = LinuxSystem.shared
     @State private var sessionManager = TerminalSessionManager()
     @State private var setupDraft = SetupDraft()
+
+    #if SWIPTERM_STORE_SCREENSHOTS && targetEnvironment(simulator)
+        @Environment(\.locale) private var screenshotLocale
+    #endif
 
     var body: some View {
         Group {
@@ -29,6 +37,9 @@ private struct ContentView: View {
                         SetupView(draft: $setupDraft)
                     }
                 }
+                #if SWIPTERM_STORE_SCREENSHOTS && targetEnvironment(simulator)
+                .id(screenshotLocale)
+                #endif
             case .booting, .running:
                 TerminalContainerView(sessionManager: sessionManager)
             case .halted:
@@ -72,6 +83,7 @@ private struct ContentView: View {
                 setupDraft = SetupDraft()
             }
         }
+        #if !SWIPTERM_STORE_SCREENSHOTS || !targetEnvironment(simulator)
         .task {
             system.onWillShutdown = {
                 sessionManager.closeAll()
@@ -82,6 +94,7 @@ private struct ContentView: View {
             await ImportedFontStore.shared.bootstrap()
             system.bootstrap()
         }
+        #endif
     }
 }
 

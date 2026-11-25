@@ -182,14 +182,18 @@ final class LinuxDistributionCatalogStore {
 
     private var activeTask: Task<Void, Never>?
 
-    #if SWIPTERM_STORE_SCREENSHOTS && targetEnvironment(simulator)
-        private init() {
-            if StoreScreenshot.current == .setup {
-                releasesByDistribution = [.alpine: [StoreScreenshot.alpineRelease]]
-                loadState = .loaded
-            }
-        }
-    #endif
+    private let fetchReleases: () async throws -> [LinuxDistribution: [LinuxReleaseImage]]
+
+    private init() {
+        #if SWIPTERM_STORE_SCREENSHOTS && targetEnvironment(simulator)
+            let releases = [LinuxDistribution.alpine: [StoreScreenshot.alpineRelease]]
+            fetchReleases = { releases }
+            releasesByDistribution = releases
+            loadState = .loaded
+        #else
+            fetchReleases = LinuxDistributionCatalogClient.fetchARM64Catalog
+        #endif
+    }
 
     func releases(for distribution: LinuxDistribution) -> [LinuxReleaseImage] {
         releasesByDistribution[distribution] ?? []
@@ -216,7 +220,7 @@ final class LinuxDistributionCatalogStore {
         loadState = .loading
         let task = Task<Void, Never> {
             do {
-                let releases = try await LinuxDistributionCatalogClient.fetchARM64Catalog()
+                let releases = try await fetchReleases()
                 guard !Task.isCancelled else { return }
                 releasesByDistribution = releases
                 loadState = .loaded

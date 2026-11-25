@@ -125,6 +125,10 @@ private struct TerminalSplitViewRepresentable: UIViewControllerRepresentable {
     let onOpenSettings: () -> Void
     let onSetupCallbacks: (TerminalSession) -> Void
 
+    #if SWIPTERM_STORE_SCREENSHOTS && targetEnvironment(simulator)
+        @Environment(StoreScreenshotLocalization.self) private var screenshotLocalization
+    #endif
+
     func makeCoordinator() -> Coordinator {
         Coordinator(splitState: splitState, onOpenSettings: onOpenSettings)
     }
@@ -150,6 +154,9 @@ private struct TerminalSplitViewRepresentable: UIViewControllerRepresentable {
                     coordinator.onOpenSettings()
                 }
             )
+            #if SWIPTERM_STORE_SCREENSHOTS && targetEnvironment(simulator)
+            .modifier(StoreScreenshotLocaleModifier(localization: screenshotLocalization))
+            #endif
         )
         primaryHosting.view.backgroundColor = .clear
         let secondaryHosting = UIHostingController(
@@ -158,6 +165,9 @@ private struct TerminalSplitViewRepresentable: UIViewControllerRepresentable {
                 splitState: splitState,
                 onSetupCallbacks: onSetupCallbacks
             )
+            #if SWIPTERM_STORE_SCREENSHOTS && targetEnvironment(simulator)
+            .modifier(StoreScreenshotLocaleModifier(localization: screenshotLocalization))
+            #endif
         )
 
         coordinator.splitViewController = splitViewController
@@ -173,6 +183,11 @@ private struct TerminalSplitViewRepresentable: UIViewControllerRepresentable {
 
     func updateUIViewController(_ splitViewController: UISplitViewController, context: Context) {
         context.coordinator.onOpenSettings = onOpenSettings
+        #if SWIPTERM_STORE_SCREENSHOTS && targetEnvironment(simulator)
+            let isRTL = context.environment.layoutDirection == .rightToLeft
+            splitViewController.view.semanticContentAttribute = isRTL ? .forceRightToLeft : .forceLeftToRight
+            splitViewController.traitOverrides.layoutDirection = isRTL ? .rightToLeft : .leftToRight
+        #endif
         applyLayoutBehavior(to: splitViewController, coordinator: context.coordinator)
     }
 

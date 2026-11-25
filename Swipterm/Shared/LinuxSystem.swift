@@ -90,7 +90,9 @@ final class LinuxSystem {
 
     private(set) var state: State = .checking {
         didSet {
-            HostLocation.shared.updateContainerActive(state.runsGuest)
+            #if !SWIPTERM_STORE_SCREENSHOTS || !targetEnvironment(simulator)
+                HostLocation.shared.updateContainerActive(state.runsGuest)
+            #endif
         }
     }
 
@@ -125,7 +127,11 @@ final class LinuxSystem {
     private var lifecycleObservers: [NSObjectProtocol] = []
 
     private init() {
-        observeApplicationLifecycle()
+        #if SWIPTERM_STORE_SCREENSHOTS && targetEnvironment(simulator)
+            state = StoreScreenshot.current == .setup ? .setup : .running
+        #else
+            observeApplicationLifecycle()
+        #endif
     }
 
     var consoleText: String {
@@ -136,15 +142,15 @@ final class LinuxSystem {
         !consoleChunks.isEmpty
     }
 
+    #if SWIPTERM_STORE_SCREENSHOTS && targetEnvironment(simulator)
+        // Screenshot builds only present the in-memory terminal when Create is pressed.
+        func install(_: InstallRequest) {
+            state = .running
+        }
+    #else
     func bootstrap() {
         guard !bootstrapped else { return }
         bootstrapped = true
-        #if SWIPTERM_STORE_SCREENSHOTS && targetEnvironment(simulator)
-            if let screenshot = StoreScreenshot.current {
-                state = screenshot == .setup ? .setup : .running
-                return
-            }
-        #endif
         requestLocalNetworkAuthorizationIfNeeded()
 
         let generation = beginOperation()
@@ -276,6 +282,8 @@ final class LinuxSystem {
             }
         }
     }
+
+    #endif
 
     func retrySetup() {
         guard case let .provisioning(provisioning) = state, provisioning.failure != nil else { return }

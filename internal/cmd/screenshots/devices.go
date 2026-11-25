@@ -1,15 +1,18 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"reflect"
+	"regexp"
 	"slices"
 	"strings"
+	"syscall"
+	"time"
 )
 
 type captureSize struct {
@@ -18,12 +21,13 @@ type captureSize struct {
 }
 
 type captureDevice struct {
-	name        string
-	deviceType  string
-	displayType string
-	orientation string
-	pose        string
-	sizes       []captureSize
+	name             string
+	deviceType       string
+	displayType      string
+	orientation      string
+	terminalFontSize int
+	pose             string
+	sizes            []captureSize
 }
 
 const captureDeviceName = "Swipterm Screenshots "
@@ -37,8 +41,8 @@ var devices = []captureDevice{
 	{name: "iphone-faceid-medium", deviceType: "iPhone-14", orientation: "portrait", sizes: []captureSize{{1170, 2532}, {1125, 2436}, {1080, 2340}}},
 	{name: "iphone-home-large", deviceType: "iPhone-SE-3rd-generation", displayType: "iPhone-8-Plus", orientation: "portrait", sizes: []captureSize{{1242, 2208}}},
 	{name: "iphone-home-medium", deviceType: "iPhone-SE-3rd-generation", orientation: "portrait", sizes: []captureSize{{750, 1334}}},
-	{name: "iphone-4", deviceType: "iPhone-SE-3rd-generation", displayType: "iPhone-SE", orientation: "portrait", sizes: []captureSize{{640, 1136}}},
-	{name: "duo-inner", deviceType: "iPhone-Duo", orientation: "portrait", pose: "open", sizes: []captureSize{{2007, 2853}}},
+	{name: "iphone-4", deviceType: "iPhone-SE-3rd-generation", displayType: "iPhone-SE", terminalFontSize: 8, orientation: "portrait", sizes: []captureSize{{640, 1136}}},
+	{name: "duo-inner", deviceType: "iPhone-Duo", orientation: "landscapeLeft", pose: "open", sizes: []captureSize{{2853, 2007}}},
 	{name: "duo-outer", deviceType: "iPhone-Duo", orientation: "portrait", pose: "closed", sizes: []captureSize{{1398, 2034}}},
 	{name: "ipad", deviceType: "iPad-Pro-13-inch-M5-12GB", orientation: "landscapeLeft", sizes: []captureSize{{2752, 2064}, {2732, 2048}}},
 	{name: "ipad-12.9", deviceType: "iPad-Pro-12-9-inch-6th-generation-8GB", orientation: "landscapeLeft", sizes: []captureSize{{2732, 2048}}},
@@ -47,18 +51,17 @@ var devices = []captureDevice{
 	{name: "ipad-9.7", deviceType: "iPad-mini--5th-generation-", orientation: "landscapeLeft", sizes: []captureSize{{2048, 1536}}},
 }
 
+// captureSimulator owns the UDID returned by simctl create and its optional device profile.
 type captureSimulator struct {
-	udid string
-	name string
+	udid     string
+	profiles string
 }
 
+var simulatorUDID = regexp.MustCompile(`^[[:xdigit:]]{8}(-[[:xdigit:]]{4}){3}-[[:xdigit:]]{12}$`)
+
 type simulatorDevice struct {
-	UDID                 string
-	Name                 string
-	State                string
-	IsAvailable          bool
-	DeviceTypeIdentifier string
-	DataPath             string
+	UDID     string
+	DataPath string
 }
 
 type simulatorRuntime struct {
@@ -69,32 +72,49 @@ type simulatorRuntime struct {
 	SupportedDeviceTypes []struct{ Identifier string }
 }
 
-func simulatorCommand(args ...string) ([]byte, error) {
-	result, err := exec.Command("xcrun", append([]string{"simctl"}, args...)...).CombinedOutput()
+func simulatorCommand(ctx context.Context, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, "xcrun", append([]string{"simctl"}, args...)...)
+	// Deliver cancellation through ctx so a terminal interrupt cannot cut off create's UDID or cleanup.
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	result, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("simctl %s: %w\n%s", strings.Join(args, " "), err, strings.TrimSpace(string(result)))
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			return nil, fmt.Errorf("simctl %s: %w\n%s", strings.Join(args, " "), err, strings.TrimSpace(string(exitErr.Stderr)))
+		}
+		return nil, err
 	}
 	return result, nil
 }
 
-func listCaptureSimulators(profiles string) (map[string][]simulatorDevice, error) {
-	args := []string{"list", "--json", "devices"}
-	if profiles != "" {
-		args = append([]string{"--profiles", profiles}, args...)
+func (simulator captureSimulator) command(ctx context.Context, args ...string) ([]byte, error) {
+	if simulator.profiles != "" {
+		args = append([]string{"--profiles", simulator.profiles}, args...)
 	}
-	output, err := simulatorCommand(args...)
+	return simulatorCommand(ctx, args...)
+}
+
+func (simulator captureSimulator) dataPath(ctx context.Context) (string, error) {
+	output, err := simulator.command(ctx, "list", "--json", "devices", simulator.udid)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	var list struct{ Devices map[string][]simulatorDevice }
 	if err := json.Unmarshal(output, &list); err != nil {
-		return nil, err
+		return "", err
 	}
-	return list.Devices, nil
+	for _, devices := range list.Devices {
+		for _, device := range devices {
+			if device.UDID == simulator.udid && device.DataPath != "" {
+				return device.DataPath, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("no data path for newly created simulator %s", simulator.udid)
 }
 
-func latestRuntime(deviceType string) (string, error) {
-	output, err := simulatorCommand("list", "--json", "runtimes")
+func latestRuntime(ctx context.Context, deviceType string) (string, error) {
+	output, err := simulatorCommand(ctx, "list", "--json", "runtimes")
 	if err != nil {
 		return "", err
 	}
@@ -127,56 +147,78 @@ func compareRuntimeVersions(first, second string) int {
 	return slices.Compare(lhs[:], rhs[:])
 }
 
-func prepareSimulator(device captureDevice) (captureSimulator, error) {
+func prepareSimulator(ctx context.Context, device captureDevice, directory string) (_ captureSimulator, err error) {
 	deviceType := "com.apple.CoreSimulator.SimDeviceType." + device.deviceType
-	runtime, err := latestRuntime(deviceType)
+	runtime, err := latestRuntime(ctx, deviceType)
 	if err != nil {
 		return captureSimulator{}, err
 	}
-	deviceType, profiles, err := screenshotDeviceProfile(device, deviceType)
-	if err != nil {
-		return captureSimulator{}, err
-	}
-	simulators, err := listCaptureSimulators(profiles)
-	if err != nil {
-		return captureSimulator{}, err
-	}
-	name := captureDeviceName + device.name
-	findSimulator := func() (simulatorDevice, bool) {
-		for _, simulator := range simulators[runtime] {
-			if simulator.Name == name && simulator.IsAvailable && simulator.DeviceTypeIdentifier == deviceType {
-				return simulator, true
-			}
+
+	var simulator captureSimulator
+	defer func() {
+		if err != nil {
+			err = errors.Join(err, simulator.remove())
 		}
-		return simulatorDevice{}, false
-	}
-	simulator, found := findSimulator()
-	if !found {
-		args := []string{"create", name, deviceType, runtime}
-		if profiles != "" {
-			args = append([]string{"--profiles", profiles}, args...)
-		}
-		if _, err := simulatorCommand(args...); err != nil {
-			return captureSimulator{}, err
-		}
-		simulators, err = listCaptureSimulators(profiles)
+	}()
+	jobName := filepath.Base(directory)
+	if device.displayType != "" {
+		simulator.profiles, err = filepath.Abs(filepath.Join(directory, "profiles"))
 		if err != nil {
 			return captureSimulator{}, err
 		}
-		simulator, found = findSimulator()
-		if !found {
-			return captureSimulator{}, fmt.Errorf("created simulator %q is missing from simctl list", name)
+		deviceType, err = writeScreenshotProfile(ctx, device, deviceType, simulator.profiles, jobName)
+		if err != nil {
+			return captureSimulator{}, err
 		}
 	}
-	if err := configureSimulatorPreferences(device, simulator); err != nil {
+	if err := ctx.Err(); err != nil {
 		return captureSimulator{}, err
 	}
-	return captureSimulator{udid: simulator.UDID, name: name}, nil
+	// Let create return its UDID so cleanup can delete the device even on cancellation.
+	output, err := simulator.command(context.WithoutCancel(ctx), "create", captureDeviceName+jobName, deviceType, runtime)
+	if err != nil {
+		return captureSimulator{}, err
+	}
+	udid := strings.TrimSpace(string(output))
+	if !simulatorUDID.MatchString(udid) {
+		return captureSimulator{}, fmt.Errorf("unexpected UDID from simctl create: %q", udid)
+	}
+	simulator.udid = udid
+	dataPath, err := simulator.dataPath(ctx)
+	if err != nil {
+		return captureSimulator{}, err
+	}
+	if err := configureSimulatorPreferences(device, dataPath); err != nil {
+		return captureSimulator{}, err
+	}
+	if err := simulator.boot(ctx); err != nil {
+		return captureSimulator{}, err
+	}
+	if device.pose != "" {
+		if err := setSimulatorPose(ctx, simulator.udid, device.pose, directory); err != nil {
+			return captureSimulator{}, err
+		}
+	}
+	return simulator, nil
 }
 
-func configureSimulatorPreferences(device captureDevice, simulator simulatorDevice) error {
+func (simulator captureSimulator) boot(ctx context.Context) error {
+	if _, err := simulator.command(ctx, "bootstatus", simulator.udid, "-b"); err != nil {
+		return err
+	}
+	clock := time.Date(2007, time.January, 9, 9, 41, 0, 0, time.Local).Format("2006-01-02T15:04:05.000Z07:00")
+	_, err := simulator.command(ctx, "status_bar", simulator.udid, "override",
+		"--time", clock, "--dataNetwork", "wifi", "--wifiMode", "active", "--wifiBars", "3",
+		"--cellularMode", "active", "--cellularBars", "4", "--batteryState", "charged", "--batteryLevel", "100",
+	)
+	return err
+}
+
+func configureSimulatorPreferences(device captureDevice, dataPath string) error {
 	preferences := map[string]map[string]any{
 		".GlobalPreferences": {"AppleLanguages": []any{"en-US"}, "AppleLocale": "en_US"},
+		// Keep the system keyboard's first-use Slide to Type tutorial out of the terminal.
+		"com.apple.keyboard.preferences": {"DidShowContinuousPathIntroduction": true},
 	}
 	if strings.HasPrefix(device.deviceType, "iPad-") {
 		// Use Full Screen Apps and remove the window grabber on iPad.
@@ -185,29 +227,20 @@ func configureSimulatorPreferences(device captureDevice, simulator simulatorDevi
 			"SBChamoisWindowingEnabled":   false,
 		}
 	}
+	directory := filepath.Join(dataPath, "Library", "Preferences")
+	if err := os.MkdirAll(directory, 0o755); err != nil {
+		return err
+	}
 	for domain, values := range preferences {
-		path := filepath.Join(simulator.DataPath, "Library", "Preferences", domain+".plist")
+		path := filepath.Join(directory, domain+".plist")
 		content, err := readScreenshotPlist(path)
 		if errors.Is(err, os.ErrNotExist) {
 			content = make(map[string]any)
 		} else if err != nil {
 			return err
 		}
-		changed := false
 		for key, value := range values {
-			if !reflect.DeepEqual(content[key], value) {
-				content[key] = value
-				changed = true
-			}
-		}
-		if !changed {
-			continue
-		}
-		if simulator.State != "Shutdown" {
-			return fmt.Errorf("shut down %q before updating screenshot preferences", simulator.Name)
-		}
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			return err
+			content[key] = value
 		}
 		if err := writeScreenshotPlist(path, content); err != nil {
 			return err
@@ -216,13 +249,16 @@ func configureSimulatorPreferences(device captureDevice, simulator simulatorDevi
 	return nil
 }
 
-func shutdownCaptureSimulator(simulator captureSimulator) error {
-	if !strings.HasPrefix(simulator.name, captureDeviceName) {
-		return fmt.Errorf("%q is not a Swipterm screenshots simulator", simulator.name)
+func (simulator captureSimulator) remove() error {
+	if simulator.udid != "" {
+		// A failed preparation can leave the device in any state, including Shutdown.
+		_, shutdownErr := simulator.command(context.Background(), "shutdown", simulator.udid)
+		if _, err := simulator.command(context.Background(), "delete", simulator.udid); err != nil {
+			return errors.Join(err, shutdownErr)
+		}
 	}
-	_, err := simulatorCommand("shutdown", simulator.udid)
-	if err != nil && strings.Contains(err.Error(), "current state: Shutdown") {
-		return nil
+	if simulator.profiles != "" {
+		return os.RemoveAll(simulator.profiles)
 	}
-	return err
+	return nil
 }
