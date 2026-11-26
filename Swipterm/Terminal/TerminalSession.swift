@@ -68,6 +68,10 @@ final class TerminalSession: Identifiable {
         view.controller = state.controller
         view.configuration = state.configuration
         view.delegate = extras
+        view.inMemorySession = session
+        view.readOutputActivity = { [weak relay] in
+            relay?.outputActivitySnapshot() ?? .init(wasQuietBeforeInput: false, outputCountBeforeInput: 0, currentOutputCount: 0)
+        }
         surfaceView = view
 
         extras.onDesktopNotification = { [weak self] title, body in
@@ -162,6 +166,9 @@ final class TerminalSession: Identifiable {
                 while let data = await terminal.read() {
                     await relay.waitWhileBacklogged()
                     guard !relay.isAborted else { break }
+                    if !data.isEmpty {
+                        relay.recordOutput()
+                    }
                     session.receive(data)
                     if firstPtyOutput.claim() {
                         Task { @MainActor [weak self] in
@@ -298,6 +305,11 @@ private final nonisolated class TerminalRelay: @unchecked Sendable {
     private var aborted = false
     private var drainingExit = false
     private var backlogWaiter: CheckedContinuation<Void, Never>?
+    private var outputCount: UInt64 = 0
+    private var lastOutputUptime: TimeInterval = 0
+    private var lastInputUptime: TimeInterval = 0
+    private var outputCountAtInputBurst: UInt64 = 0
+    private var wasQuietAtInputBurst = true
 
     let inputStream: AsyncStream<Data>
     private let inputContinuation: AsyncStream<Data>.Continuation
@@ -317,9 +329,43 @@ private final nonisolated class TerminalRelay: @unchecked Sendable {
     }
 
     func sendInput(_ data: Data) {
-        let ready = lock.withLock { currentTerminal != nil && !aborted }
+        let now = ProcessInfo.processInfo.systemUptime
+        let ready = lock.withLock {
+            if now - lastInputUptime > 0.02 {
+                wasQuietAtInputBurst = now - lastOutputUptime >= 0.2
+                outputCountAtInputBurst = outputCount
+            }
+            lastInputUptime = now
+            return currentTerminal != nil && !aborted
+        }
         if ready {
             inputContinuation.yield(data)
+        }
+    }
+
+    func recordOutput() {
+        let now = ProcessInfo.processInfo.systemUptime
+        lock.withLock {
+            outputCount &+= 1
+            lastOutputUptime = now
+        }
+    }
+
+    func outputActivitySnapshot() -> TerminalSurfaceView.SurfaceView.OutputActivitySnapshot {
+        let now = ProcessInfo.processInfo.systemUptime
+        return lock.withLock {
+            if now - lastInputUptime <= 0.05 {
+                return .init(
+                    wasQuietBeforeInput: wasQuietAtInputBurst,
+                    outputCountBeforeInput: outputCountAtInputBurst,
+                    currentOutputCount: outputCount
+                )
+            }
+            return .init(
+                wasQuietBeforeInput: now - lastOutputUptime >= 0.2,
+                outputCountBeforeInput: outputCount,
+                currentOutputCount: outputCount
+            )
         }
     }
 

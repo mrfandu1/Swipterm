@@ -90,6 +90,12 @@ struct TerminalSurfaceView: View {
     }
 
     final class SurfaceView: UITerminalView {
+        struct OutputActivitySnapshot: Sendable {
+            let wasQuietBeforeInput: Bool
+            let outputCountBeforeInput: UInt64
+            let currentOutputCount: UInt64
+        }
+
         private static let accessoryPasteActionID = UIAction.Identifier("swipterm.accessory.paste")
         private static let accessoryPreKeyActionID = UIAction.Identifier("swipterm.accessory.preKey")
         private static let accessoryPostKeyActionID = UIAction.Identifier("swipterm.accessory.postKey")
@@ -108,8 +114,14 @@ struct TerminalSurfaceView: View {
             TerminalInputAccessoryItem.command.title,
         ].compactMap(\.self))
 
+        weak var inMemorySession: InMemoryTerminalSession?
+        var readOutputActivity: (() -> OutputActivitySnapshot)?
+
         private var interceptedPresses: Set<UIPress> = []
         private var wantsFocus = false
+        private var needsFocusSync = false
+        private var lastDirectTapPoint: CGPoint?
+        private var pendingKeyboardToggleTask: Task<Void, Never>?
         private lazy var dropHandler = SurfaceDropDelegate(surfaceView: self)
 
         private weak var systemInputDelegate: (any UITextInputDelegate)?
@@ -122,6 +134,7 @@ struct TerminalSurfaceView: View {
 
         override init(frame: CGRect) {
             super.init(frame: frame)
+            _ = SoftwareKeyboardTracker.shared
             for interaction in interactions where interaction is UIDropInteraction {
                 removeInteraction(interaction)
             }
@@ -136,23 +149,40 @@ struct TerminalSurfaceView: View {
         }
 
         func syncFocus(isActive: Bool) {
+            let changed = wantsFocus != isActive
             wantsFocus = isActive
-            guard window != nil, isActive != isFirstResponder else { return }
-            // A keyboard hide posted while SwiftUI is updating the hosting view leaves that view laid out
-            // with the old keyboard height as a fixed bottom edge, which ignoresSafeArea cannot extend past.
-            DispatchQueue.main.async { [weak self] in
-                guard let self, window != nil, wantsFocus != isFirstResponder else { return }
-                _ = wantsFocus ? becomeFirstResponder() : resignFirstResponder()
+            if !isActive {
+                pendingKeyboardToggleTask?.cancel()
+                pendingKeyboardToggleTask = nil
             }
+            guard changed else { return }
+            needsFocusSync = true
+            guard window != nil else { return }
+            applyPendingFocusSync()
+        }
+
+        override func willMove(toWindow newWindow: UIWindow?) {
+            if newWindow == nil, wantsFocus, isFirstResponder {
+                needsFocusSync = true
+            }
+            super.willMove(toWindow: newWindow)
         }
 
         override func didMoveToWindow() {
             super.didMoveToWindow()
-            if window != nil, wantsFocus, !isFirstResponder {
-                DispatchQueue.main.async { [weak self] in
-                    guard let self, wantsFocus, window != nil, !isFirstResponder else { return }
-                    _ = becomeFirstResponder()
-                }
+            if window != nil, needsFocusSync {
+                applyPendingFocusSync()
+            }
+        }
+
+        private func applyPendingFocusSync() {
+            // A keyboard hide posted while SwiftUI is updating the hosting view leaves that view laid out
+            // with the old keyboard height as a fixed bottom edge, which ignoresSafeArea cannot extend past.
+            DispatchQueue.main.async { [weak self] in
+                guard let self, window != nil, needsFocusSync else { return }
+                needsFocusSync = false
+                guard wantsFocus != isFirstResponder else { return }
+                _ = wantsFocus ? becomeFirstResponder() : resignFirstResponder()
             }
         }
 
@@ -169,16 +199,167 @@ struct TerminalSurfaceView: View {
         }
 
         override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+            pendingKeyboardToggleTask?.cancel()
+            pendingKeyboardToggleTask = nil
             if touches.contains(where: { $0.type == .indirectPointer }) {
                 forgetTypedText()
             }
+            if (event?.touches(for: self)?.count ?? touches.count) == 1,
+               let touch = touches.first,
+               touch.type == .direct
+            {
+                lastDirectTapPoint = touch.location(in: self)
+            } else {
+                lastDirectTapPoint = nil
+            }
             super.touchesBegan(touches, with: event)
+        }
+
+        override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+            if (event?.touches(for: self)?.count ?? touches.count) == 1,
+               let touch = touches.first,
+               touch.type == .direct
+            {
+                lastDirectTapPoint = touch.location(in: self)
+            }
+            super.touchesEnded(touches, with: event)
         }
 
         override func toggleSoftwareKeyboard() {
             guard wantsFocus else { return }
             forgetTypedText()
-            super.toggleSoftwareKeyboard()
+            guard isMouseCaptured else {
+                super.toggleSoftwareKeyboard()
+                return
+            }
+            guard let tapPoint = lastDirectTapPoint else { return }
+            lastDirectTapPoint = nil
+            let isKeyboardVisible = isFirstResponder && SoftwareKeyboardTracker.shared.isOnScreen
+            let caretBefore = caretRect(for: beginningOfDocument)
+            if isPointNearCaretRow(tapPoint, caret: caretBefore, rowPadding: 1) {
+                if !isKeyboardVisible, !isFirstResponder {
+                    _ = becomeFirstResponder()
+                }
+                return
+            }
+            let initialActivity = readOutputActivity?()
+            let wasQuiet = initialActivity?.wasQuietBeforeInput == true
+            let blankSliceBefore = wasQuiet ? nil : blankViewportContext(at: tapPoint)
+            guard wasQuiet || blankSliceBefore != nil || !isKeyboardVisible else { return }
+            pendingKeyboardToggleTask?.cancel()
+            pendingKeyboardToggleTask = Task { [weak self] in
+                try? await Task.sleep(for: .milliseconds(80))
+                guard !Task.isCancelled,
+                      let self,
+                      wantsFocus,
+                      window != nil,
+                      isMouseCaptured
+                else { return }
+                let reactedEarly = wasQuiet
+                    && initialActivity != nil
+                    && readOutputActivity?().currentOutputCount != initialActivity?.outputCountBeforeInput
+                if !reactedEarly {
+                    try? await Task.sleep(for: .milliseconds(220))
+                    guard !Task.isCancelled,
+                          wantsFocus,
+                          window != nil,
+                          isMouseCaptured
+                    else { return }
+                    if wasQuiet,
+                       let initialActivity,
+                       readOutputActivity?().currentOutputCount == initialActivity.outputCountBeforeInput
+                    {
+                        toggleSoftwareKeyboardState()
+                        return
+                    }
+                    if let blankSliceBefore,
+                       blankViewportContext(at: tapPoint) == blankSliceBefore
+                    {
+                        toggleSoftwareKeyboardState()
+                        return
+                    }
+                }
+                guard !(isFirstResponder && SoftwareKeyboardTracker.shared.isOnScreen) else { return }
+                let caretAfter = caretRect(for: beginningOfDocument)
+                let caretMoved = abs(caretAfter.minX - caretBefore.minX) > 1
+                    || abs(caretAfter.minY - caretBefore.minY) > 1
+                if caretMoved, isPointNearCaretRow(tapPoint, caret: caretAfter, rowPadding: 0.5) {
+                    if !isFirstResponder {
+                        _ = becomeFirstResponder()
+                    }
+                }
+            }
+        }
+
+        private func toggleSoftwareKeyboardState() {
+            if isFirstResponder, SoftwareKeyboardTracker.shared.isOnScreen {
+                _ = resignFirstResponder()
+            } else if !isFirstResponder {
+                _ = becomeFirstResponder()
+            } else {
+                super.toggleSoftwareKeyboard()
+            }
+        }
+
+        private func isPointNearCaretRow(_ point: CGPoint, caret: CGRect, rowPadding: CGFloat) -> Bool {
+            guard caret.height > 0 else { return false }
+            let margin = caret.height * rowPadding
+            return point.y >= caret.minY - margin && point.y <= caret.maxY + margin
+        }
+
+        private func blankViewportContext(at point: CGPoint) -> [String]? {
+            guard let cell = viewportCell(at: point),
+                  let viewportText = inMemorySession?.readViewportText()
+            else { return nil }
+            let lines = viewportText.split(separator: "\n", omittingEmptySubsequences: false)
+            guard cell.row >= 0, cell.row < lines.count else { return nil }
+            let line = lines[cell.row]
+            if !line.isEmpty {
+                let minCol = max(0, cell.column - 1)
+                let maxCol = cell.column + 1
+                var col = 0
+                for character in line {
+                    let width = Self.terminalColumnWidth(of: character)
+                    let nextCol = col + width
+                    if nextCol > minCol, col <= maxCol, !character.isWhitespace {
+                        return nil
+                    }
+                    col = nextCol
+                    if col > maxCol {
+                        break
+                    }
+                }
+            }
+            let lower = max(0, cell.row - 3)
+            let upper = min(lines.count - 1, cell.row + 3)
+            return lines[lower ... upper].map(String.init)
+        }
+
+        private static func terminalColumnWidth(of character: Character) -> Int {
+            if character.unicodeScalars.contains(where: { $0.value == 0xFE0F || $0.properties.isEmojiPresentation }) {
+                return 2
+            }
+            guard let scalar = character.unicodeScalars.first else { return 1 }
+            switch scalar.value {
+            case 0x1100 ... 0x115F,
+                 0x2329 ... 0x232A,
+                 0x2E80 ... 0x303E,
+                 0x3040 ... 0x3247,
+                 0x3250 ... 0x4DBF,
+                 0x4E00 ... 0xA4C6,
+                 0xA960 ... 0xA97C,
+                 0xAC00 ... 0xD7A3,
+                 0xF900 ... 0xFAFF,
+                 0xFE10 ... 0xFE19,
+                 0xFE30 ... 0xFE6B,
+                 0xFF01 ... 0xFF60,
+                 0xFFE0 ... 0xFFE6,
+                 0x1F000 ... 0x1FAFF,
+                 0x20000 ... 0x3FFFD:
+                return 2
+            default:
+                return 1
+            }
         }
 
         override var inputAccessoryItems: [TerminalInputAccessoryItem] {
@@ -988,5 +1169,36 @@ private final class SurfaceTextRange: UITextRange {
         hasher.combine(range.location)
         hasher.combine(range.length)
         return hasher.finalize()
+    }
+}
+
+private final class SoftwareKeyboardTracker {
+    static let shared = SoftwareKeyboardTracker()
+    private(set) var isOnScreen = false
+
+    private init() {
+        let center = NotificationCenter.default
+        for name in [
+            UIResponder.keyboardWillShowNotification,
+            UIResponder.keyboardDidShowNotification,
+            UIResponder.keyboardWillHideNotification,
+            UIResponder.keyboardDidHideNotification,
+            UIResponder.keyboardWillChangeFrameNotification,
+        ] {
+            center.addObserver(self, selector: #selector(keyboardFrameDidChange(_:)), name: name, object: nil)
+        }
+    }
+
+    @objc private func keyboardFrameDidChange(_ notification: Notification) {
+        guard let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else {
+            isOnScreen = false
+            return
+        }
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        guard let screenBounds = (scenes.first { $0.activationState == .foregroundActive } ?? scenes.first)?.screen.bounds else {
+            isOnScreen = false
+            return
+        }
+        isOnScreen = frame.height > 0 && frame.intersects(screenBounds)
     }
 }
