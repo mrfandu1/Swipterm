@@ -466,7 +466,7 @@ final class HostLocation: NSObject {
         accuracyAuthorization = currentAccuracyAuth
         for location in locations where location.horizontalAccuracy >= 0 {
             let snapshot = leases
-            for (_, lease) in snapshot where location.timestamp >= lease.startedAt.addingTimeInterval(-Self.recentFixAge) {
+            for (_, lease) in snapshot where location.timestamp.timeIntervalSince(lease.startedAt) >= -Self.recentFixAge {
                 lease.handler(.success((location, currentAccuracyAuth)))
             }
         }
