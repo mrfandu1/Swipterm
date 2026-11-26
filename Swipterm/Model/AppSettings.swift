@@ -19,6 +19,7 @@ final class AppSettings {
         static let fontSize = "fontSize"
         static let caffeinateAvailable = "caffeinateAvailable"
         static let caffeinateEnabled = "caffeinateEnabled"
+        static let shortcuts = "shortcuts"
     }
 
     var lightTheme: String {
@@ -57,6 +58,10 @@ final class AppSettings {
         didSet { store.set(isCaffeinateEnabled, for: Key.caffeinateEnabled) }
     }
 
+    var shortcuts: [TerminalShortcut] {
+        didSet { store.set(shortcuts, for: Key.shortcuts) }
+    }
+
     private let store = PreferenceStore.shared
 
     private init() {
@@ -69,6 +74,7 @@ final class AppSettings {
         fontSize = store.value(Double.self, for: Key.fontSize) ?? 10
         isCaffeinateAvailable = store.value(Bool.self, for: Key.caffeinateAvailable) ?? false
         isCaffeinateEnabled = store.value(Bool.self, for: Key.caffeinateEnabled) ?? false
+        shortcuts = store.value([TerminalShortcut].self, for: Key.shortcuts) ?? []
     }
 
     private func saveTerminalAppearance(_ value: some Encodable, for name: String) {

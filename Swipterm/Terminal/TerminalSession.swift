@@ -23,6 +23,7 @@ final class TerminalSession: Identifiable {
 
     let id = UUID()
     let number: Int
+    let shortcut: TerminalShortcut?
     let state: TerminalViewState
     let extras = TerminalExtras()
     /// Retain a single UITerminalView per session so Ghostty preserves grid and scrollback across layout detaches.
@@ -41,8 +42,9 @@ final class TerminalSession: Identifiable {
     @ObservationIgnored private var isClosed = false
     @ObservationIgnored private var cancellables: Set<AnyCancellable> = []
 
-    init(number: Int) {
+    init(number: Int, shortcut: TerminalShortcut?) {
         self.number = number
+        self.shortcut = shortcut
         let relay = TerminalRelay()
         self.relay = relay
         session = InMemoryTerminalSession(
@@ -89,7 +91,7 @@ final class TerminalSession: Identifiable {
 
     var title: String {
         let trimmed = extras.title.trimmingCharacters(in: .whitespaces)
-        return trimmed.isEmpty ? LinuxSystem.shared.installedContainer?.name ?? "" : trimmed
+        return trimmed.isEmpty ? shortcut?.name ?? LinuxSystem.shared.installedContainer?.name ?? "" : trimmed
     }
 
     var workingDirectory: String {
@@ -114,6 +116,7 @@ final class TerminalSession: Identifiable {
         let session = session
         let relay = relay
         let firstPtyOutput = OnceFlag()
+        let startupInput = shortcut?.startupInput
         var consoleSubscription: UUID?
         defer {
             if let consoleSubscription {
@@ -171,6 +174,14 @@ final class TerminalSession: Identifiable {
                     }
                     session.receive(data)
                     if firstPtyOutput.claim() {
+                        if let startupInput {
+                            Task.detached {
+                                while relay.outputQuietDuration < 0.3 {
+                                    try? await Task.sleep(for: .milliseconds(50))
+                                }
+                                relay.sendInput(startupInput)
+                            }
+                        }
                         Task { @MainActor [weak self] in
                             self?.hasVisibleOutput = true
                         }
@@ -326,6 +337,11 @@ private final nonisolated class TerminalRelay: @unchecked Sendable {
 
     var isAborted: Bool {
         lock.withLock { aborted }
+    }
+
+    var outputQuietDuration: TimeInterval {
+        let now = ProcessInfo.processInfo.systemUptime
+        return lock.withLock { now - lastOutputUptime }
     }
 
     func sendInput(_ data: Data) {

@@ -95,6 +95,14 @@ nonisolated enum CodingAgent: String, Codable, CaseIterable, Sendable {
         }
     }
 
+    var executableName: String {
+        switch self {
+        case .claudeCode: "claude"
+        case .codex: "codex"
+        case .antigravity: "agy"
+        }
+    }
+
     var isJavaScriptPackage: Bool {
         self == .claudeCode
     }

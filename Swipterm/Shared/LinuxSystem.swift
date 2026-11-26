@@ -135,6 +135,10 @@ final class LinuxSystem {
         #endif
     }
 
+    var guestFileSystem: LinuxFileSystem? {
+        runtime?.fileSystem
+    }
+
     var consoleText: String {
         ConsoleText.plain(consoleChunks)
     }

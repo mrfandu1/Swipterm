@@ -117,9 +117,10 @@ private final class TerminalSplitPresentationState {
     var isSidebarOverlayVisible = false
     var isSidebarVisible = false
     var isSettingsPresented = false
+    var isShortcutsPresented = false
 
     var isTerminalInputActive: Bool {
-        !isSidebarOverlayVisible && !isSettingsPresented
+        !isSidebarOverlayVisible && !isSettingsPresented && !isShortcutsPresented
     }
 }
 
@@ -286,6 +287,11 @@ private struct TerminalDetailView: View {
         .navigationTitle(isRunning && horizontalSizeClass == .regular ? "" : (sessionManager.activeSession?.title ?? ""))
         .navigationBarTitleDisplayMode(.inline)
         .modifier(HorizontalBarsOnlyModifier())
+        .sheet(isPresented: Bindable(splitState).isShortcutsPresented) {
+            NavigationStack {
+                ManageShortcutsView()
+            }
+        }
     }
 
     private var terminalContent: some View {
@@ -313,11 +319,33 @@ private struct TerminalDetailView: View {
     private func toolbar(columnWidth: CGFloat, isRunning: Bool) -> some ToolbarContent {
         if isRunning {
             if !splitState.isSidebarVisible {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        sessionManager.addSession()
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Section("New") {
+                            Button {
+                                sessionManager.addSession()
+                            } label: {
+                                Label("New Terminal", systemImage: "plus")
+                            }
+                            ForEach(AppSettings.shared.shortcuts) { shortcut in
+                                Button {
+                                    sessionManager.addSession(shortcut: shortcut)
+                                } label: {
+                                    Label {
+                                        Text(verbatim: shortcut.name)
+                                    } icon: {
+                                        Image(systemName: shortcut.symbolName)
+                                    }
+                                }
+                            }
+                            Button {
+                                splitState.isShortcutsPresented = true
+                            } label: {
+                                Label("Manage Shortcuts", systemImage: "slider.horizontal.3")
+                            }
+                        }
                     } label: {
-                        Label("New Session", systemImage: "plus")
+                        Label("Others", systemImage: "ellipsis")
                     }
                 }
             }

@@ -22,9 +22,9 @@ final class TerminalSessionManager {
         }
     }
 
-    func addSession() {
+    func addSession(shortcut: TerminalShortcut? = nil) {
         let numbers = Set(sessions.map(\.number))
-        let session = TerminalSession(number: (1...).first { !numbers.contains($0) }!)
+        let session = TerminalSession(number: (1...).first { !numbers.contains($0) }!, shortcut: shortcut)
         let id = session.id
         session.onCleanExit = { [weak self] in
             Task {
