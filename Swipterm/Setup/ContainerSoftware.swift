@@ -47,6 +47,7 @@ nonisolated struct SSHServer: Codable, Equatable, Sendable {
 
 nonisolated enum DeveloperTool: String, Codable, CaseIterable, Sendable {
     case buildEssentials = "build-essentials"
+    case docker
     case git
     case gnupg
     case node
@@ -60,6 +61,7 @@ nonisolated enum DeveloperTool: String, Codable, CaseIterable, Sendable {
     var displayName: String {
         switch self {
         case .buildEssentials: String(localized: "Build Essentials")
+        case .docker: "Docker"
         case .git: "Git"
         case .gnupg: "GnuPG"
         case .node: "Node.js"

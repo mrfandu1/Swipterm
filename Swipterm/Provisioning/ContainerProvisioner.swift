@@ -74,7 +74,14 @@ nonisolated enum ContainerProvisioner {
     user=${SWIPTERM_USER:-root}
     [ -d /tmp ] || mkdir -m 1777 /tmp
     work=$(mktemp -d /tmp/swipterm.XXXXXX)
-    trap 'rm -rf "$work"' EXIT
+    policy_rc_d=
+    cleanup() {
+        if [ -n "$policy_rc_d" ]; then
+            rm -f "$policy_rc_d"
+        fi
+        rm -rf "$work"
+    }
+    trap cleanup EXIT
 
     step() {
         printf '\n\033[1m==> %s\033[0m\n' "$*"
@@ -111,6 +118,15 @@ nonisolated enum ContainerProvisioner {
 
     in_group() {
         id -nG "$1" | tr ' ' '\n' | grep -qx "$2"
+    }
+
+    join_group() {
+        in_group "$user" "$1" && return 0
+        if have usermod; then
+            usermod -a -G "$1" "$user"
+        else
+            addgroup "$user" "$1"
+        fi
     }
 
     want_tool() {
@@ -292,6 +308,46 @@ nonisolated enum ContainerProvisioner {
         if want_tool git && ! have git; then
             add git
         fi
+        if want_tool docker; then
+            case "$SWIPTERM_DISTRIBUTION" in
+            alma | centos | oracle | rocky)
+                add docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin ca-certificates
+                ;;
+            alpine)
+                add docker docker-openrc docker-cli-compose docker-cli-buildx
+                ;;
+            arch | openSUSE | void)
+                add docker docker-compose docker-buildx
+                ;;
+            debian)
+                add docker.io ca-certificates
+                if [ -z "$SWIPTERM_VERSION_ID" ] || version_at_least 13; then
+                    add docker-cli docker-compose docker-buildx
+                fi
+                ;;
+            devuan)
+                add docker.io ca-certificates
+                if version_at_least 6; then
+                    add docker-cli docker-compose docker-buildx
+                fi
+                ;;
+            fedora)
+                add moby-engine docker-cli docker-compose docker-buildx ca-certificates
+                ;;
+            kali)
+                add docker.io docker-cli docker-compose docker-buildx ca-certificates
+                ;;
+            openEuler)
+                add moby ca-certificates
+                ;;
+            ubuntu)
+                add docker.io ca-certificates
+                if version_at_least 24; then
+                    add docker-compose-v2 docker-buildx
+                fi
+                ;;
+            esac
+        fi
         if want_tool gnupg && ! have gpg; then
             case "$SWIPTERM_DISTRIBUTION" in
             alma | centos | fedora | openEuler | oracle | rocky) add gnupg2 ;;
@@ -361,6 +417,12 @@ nonisolated enum ContainerProvisioner {
         packages_synced=1
         case "$SWIPTERM_DISTRIBUTION" in
         debian | devuan | kali | ubuntu)
+            if [ ! -e /usr/sbin/policy-rc.d ]; then
+                mkdir -p /usr/sbin
+                printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d
+                chmod 0755 /usr/sbin/policy-rc.d
+                policy_rc_d=/usr/sbin/policy-rc.d
+            fi
             apt-get update
             ;;
         alpine)
@@ -375,6 +437,26 @@ nonisolated enum ContainerProvisioner {
         alma | centos | fedora | openEuler | oracle | rocky)
             if [ "$SWIPTERM_DISTRIBUTION" = oracle ]; then
                 dnf -y install "oraclelinux-release-el${SWIPTERM_VERSION_ID%%.*}" || true
+            fi
+            if want_tool docker; then
+                case "$SWIPTERM_DISTRIBUTION" in
+                alma | centos | oracle | rocky)
+                    docker_repo_os=rhel
+                    if [ "$SWIPTERM_DISTRIBUTION" = centos ]; then
+                        docker_repo_os=centos
+                    fi
+                    docker_repo_ver=${SWIPTERM_VERSION_ID%%.*}
+                    mkdir -p /etc/yum.repos.d
+                    cat > /etc/yum.repos.d/docker-ce.repo <<EOF
+    [docker-ce-stable]
+    name=Docker CE Stable - \$basearch
+    baseurl=https://download.docker.com/linux/$docker_repo_os/$docker_repo_ver/\$basearch/stable
+    enabled=1
+    gpgcheck=1
+    gpgkey=https://download.docker.com/linux/$docker_repo_os/gpg
+    EOF
+                    ;;
+                esac
             fi
             if want_tool node; then
                 case "$SWIPTERM_DISTRIBUTION:${SWIPTERM_VERSION_ID%%.*}" in
@@ -575,13 +657,7 @@ nonisolated enum ContainerProvisioner {
                 adduser -D -s "$shell" -h "/home/$user" "$user"
             fi
         fi
-        if ! in_group "$user" "$group"; then
-            if have usermod; then
-                usermod -a -G "$group" "$user"
-            else
-                addgroup "$user" "$group"
-            fi
-        fi
+        join_group "$group"
         if [ -n "${SWIPTERM_PASSWORD:-}" ]; then
             printf '%s:%s\n' "$user" "$SWIPTERM_PASSWORD" | chpasswd
         elif have usermod; then
@@ -801,6 +877,37 @@ nonisolated enum ContainerProvisioner {
         esac
     }
 
+    configure_docker() {
+        want_tool docker || return 0
+        step "Docker"
+        if ! grep -q '^docker:' /etc/group; then
+            if have groupadd; then
+                groupadd --system docker
+            else
+                addgroup -S docker
+            fi
+        fi
+        if [ "$user" != root ]; then
+            join_group docker
+        fi
+        case "$SWIPTERM_DISTRIBUTION" in
+        alpine)
+            rc-update add docker default
+            ;;
+        devuan)
+            update-rc.d docker defaults
+            ;;
+        void)
+            mkdir -p /etc/runit/runsvdir/default
+            ln -sfn /etc/sv/containerd /etc/runit/runsvdir/default/containerd
+            ln -sfn /etc/sv/docker /etc/runit/runsvdir/default/docker
+            ;;
+        *)
+            systemctl enable docker.service
+            ;;
+        esac
+    }
+
     configure_path() {
         case "$SWIPTERM_DISTRIBUTION" in
         debian | devuan | kali | ubuntu)
@@ -991,6 +1098,7 @@ nonisolated enum ContainerProvisioner {
     load_user
     configure_login_shell
     configure_ssh
+    configure_docker
     configure_path
     install_rust
     install_agents
