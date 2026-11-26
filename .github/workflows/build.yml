@@ -149,7 +149,7 @@ jobs:
       - name: Build TestFlight
         run: make archive_ios export_ios
         env:
-          XCODEBUILD_FLAGS: -clonedSourcePackagesDirPath ${{ runner.temp }}/SourcePackages MARKETING_VERSION=${{ needs.calculate_version.outputs.testflight_version }} CURRENT_PROJECT_VERSION=${{ env.TESTFLIGHT_PROJECT_VERSION }} COMPILATION_CACHE_ENABLE_CACHING=YES COMPILATION_CACHE_CAS_PATH=${{ runner.temp }}/CompilationCache COMPILATION_CACHE_LIMIT_SIZE=2G
+          XCODEBUILD_FLAGS: -clonedSourcePackagesDirPath ${{ runner.temp }}/SourcePackages MARKETING_VERSION=${{ needs.calculate_version.outputs.testflight_version }} CURRENT_PROJECT_VERSION=${{ env.TESTFLIGHT_PROJECT_VERSION }} SWIPTERM_BUILD_CONDITION=TESTFLIGHT COMPILATION_CACHE_ENABLE_CACHING=YES COMPILATION_CACHE_CAS_PATH=${{ runner.temp }}/CompilationCache COMPILATION_CACHE_LIMIT_SIZE=2G
       - name: Upload TestFlight build
         run: |-
           xcrun altool --upload-app \

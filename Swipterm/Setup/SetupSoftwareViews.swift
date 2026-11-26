@@ -165,7 +165,7 @@ struct SetupSoftwareView: View {
                 }
             }
 
-            #if DEBUG || SIDELOAD
+            #if DEBUG || SIDELOAD || TESTFLIGHT
                 Section("Coding Agents") {
                     ForEach(CodingAgent.allCases, id: \.self) { agent in
                         let isSelected = software.agents.contains(agent)
