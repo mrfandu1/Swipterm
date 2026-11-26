@@ -9,11 +9,10 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var dataSize: Int64?
     @State private var isConfirmingReset = false
-    @State private var isPromptingRestart = false
 
     var body: some View {
         Form {
-            if let container = system.installedContainer {
+            if system.installedContainer != nil {
                 Section("Container") {
                     #if DEBUG || SIDELOAD
                         JITRow()
@@ -29,17 +28,6 @@ struct SettingsView: View {
                         if let dataSize {
                             Text(dataSize.formatted(.byteCount(style: .file)))
                         }
-                    }
-                    if container.systemInit == .systemd {
-                        StartupModePicker(selection: Binding {
-                            container.initMode
-                        } set: { initMode in
-                            guard initMode != container.initMode else { return }
-                            system.updateInitMode(initMode)
-                            if initMode != system.activeInitMode {
-                                isPromptingRestart = true
-                            }
-                        })
                     }
                     Button("Reset", role: .destructive) {
                         isConfirmingReset = true
@@ -63,15 +51,6 @@ struct SettingsView: View {
         .task {
             guard system.installedContainer != nil else { return }
             dataSize = await Task.detached(priority: .utility) { LinuxSystem.containerDataSize() }.value
-        }
-        .alert("Restart Required", isPresented: $isPromptingRestart) {
-            Button("Restart Now") {
-                dismiss()
-                system.restart()
-            }
-            Button("Later", role: .cancel) {}
-        } message: {
-            Text("Restart the container to apply the new startup mode.")
         }
         .alert("No Location Access", isPresented: $location.isPresentingDeniedAlert) {
             Button("Open Settings") {

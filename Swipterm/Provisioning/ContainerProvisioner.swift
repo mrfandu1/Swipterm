@@ -780,35 +780,23 @@ nonisolated enum ContainerProvisioner {
         fi
         case "$SWIPTERM_DISTRIBUTION:$SWIPTERM_VERSION_ID" in
         ubuntu:2[0-3].* | debian:* | kali:*)
-            if have systemctl; then
-                systemctl enable ssh.service
-            fi
+            systemctl enable ssh.service
             ;;
         ubuntu:*)
-            if have systemctl; then
-                systemctl enable ssh.socket
-            fi
+            systemctl enable ssh.socket
             ;;
         devuan:*)
-            if have update-rc.d; then
-                update-rc.d ssh defaults
-            fi
+            update-rc.d ssh defaults
             ;;
         alpine:*)
-            if have rc-update; then
-                rc-update add sshd default
-            fi
+            rc-update add sshd default
             ;;
         void:*)
-            if [ -d /etc/sv/sshd ]; then
-                mkdir -p /etc/runit/runsvdir/default
-                ln -sfn /etc/sv/sshd /etc/runit/runsvdir/default/sshd
-            fi
+            mkdir -p /etc/runit/runsvdir/default
+            ln -sfn /etc/sv/sshd /etc/runit/runsvdir/default/sshd
             ;;
         *)
-            if have systemctl; then
-                systemctl enable sshd.service
-            fi
+            systemctl enable sshd.service
             ;;
         esac
     }

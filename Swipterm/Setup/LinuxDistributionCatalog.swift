@@ -93,40 +93,12 @@ nonisolated enum LinuxDistribution: String, CaseIterable, Identifiable, Codable,
         }
     }
 
-    var systemInit: SystemInit {
-        switch self {
-        case .alma, .arch, .centos, .debian, .fedora, .kali, .openEuler, .openSUSE, .oracle, .rocky, .ubuntu:
-            .systemd
-        case .alpine, .devuan, .void:
-            .other
-        }
-    }
-
     fileprivate var unsupportedReleases: Set<String> {
         switch self {
         case .alma, .oracle, .rocky: ["8"]
         default: []
         }
     }
-}
-
-nonisolated enum SystemInit: String, Codable, Sendable {
-    case systemd
-    case other
-    case absent
-
-    var requiredInitMode: ContainerInitMode? {
-        switch self {
-        case .systemd: nil
-        case .other: .system
-        case .absent: .managed
-        }
-    }
-}
-
-nonisolated enum ContainerInitMode: String, Codable, Hashable, Sendable {
-    case managed
-    case system
 }
 
 nonisolated struct LinuxReleaseImage: Identifiable, Hashable, Codable, Sendable {
@@ -153,13 +125,10 @@ nonisolated struct ContainerMetadata: Codable, Equatable, Sendable {
     var schemaVersion = 2
     let name: String
     var distributionID: String?
-    var systemInit: SystemInit?
     let installedAt: Date
-    var initMode: ContainerInitMode
     var defaultUser: String
     var setupCompleted: Bool
     var setup: ContainerSetup?
-    var sshPort: Int?
 
     var distribution: LinuxDistribution? {
         distributionID.flatMap(LinuxDistribution.init(rawValue:))

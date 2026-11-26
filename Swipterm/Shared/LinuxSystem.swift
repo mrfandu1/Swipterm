@@ -47,7 +47,6 @@ final class LinuxSystem {
 
         let source: Source
         let containerName: String
-        let initMode: ContainerInitMode
         let user: String
         let password: String?
         let software: ContainerSoftware
@@ -65,12 +64,15 @@ final class LinuxSystem {
     }
 
     private enum StartupError: LocalizedError {
+        case missingInit
         case exited(Int32)
         case signaled(Int32)
         case halted
 
         var errorDescription: String? {
             switch self {
+            case .missingInit:
+                "This system has no init system."
             case let .exited(code):
                 "Initialization failed with exit status \(code)."
             case let .signaled(signal):
@@ -97,7 +99,6 @@ final class LinuxSystem {
     }
 
     private(set) var installedContainer: ContainerMetadata?
-    private(set) var activeInitMode: ContainerInitMode?
     var pendingOpenURL: URL?
     var onWillShutdown: (() -> Void)?
 
@@ -143,145 +144,147 @@ final class LinuxSystem {
     }
 
     #if SWIPTERM_STORE_SCREENSHOTS && targetEnvironment(simulator)
-        // Screenshot builds only present the in-memory terminal when Create is pressed.
+        /// Screenshot builds only present the in-memory terminal when Create is pressed.
         func install(_: InstallRequest) {
             state = .running
         }
     #else
-    func bootstrap() {
-        guard !bootstrapped else { return }
-        bootstrapped = true
-        requestLocalNetworkAuthorizationIfNeeded()
+        func bootstrap() {
+            guard !bootstrapped else { return }
+            bootstrapped = true
+            requestLocalNetworkAuthorizationIfNeeded()
 
-        let generation = beginOperation()
-        activeTask = Task {
-            let existing = await Task.detached { () -> ContainerMetadata? in
-                Self.moveToTrash(Self.downloadStagingDirectoryURL)
-                for item in Self.items(in: Self.rootDirectoryURL.deletingLastPathComponent(), withPrefix: Self.stagingRootPrefix) {
-                    Self.moveToTrash(item, as: Self.rootDirectoryURL)
+            let generation = beginOperation()
+            activeTask = Task {
+                let existing = await Task.detached { () -> ContainerMetadata? in
+                    Self.moveToTrash(Self.downloadStagingDirectoryURL)
+                    for item in Self.items(in: Self.rootDirectoryURL.deletingLastPathComponent(), withPrefix: Self.stagingRootPrefix) {
+                        Self.moveToTrash(item, as: Self.rootDirectoryURL)
+                    }
+                    guard LinuxRootImage.isInstalled(at: Self.rootDirectoryURL), let metadata = Self.loadContainerMetadata() else {
+                        Self.moveToTrash(Self.rootDirectoryURL)
+                        return nil
+                    }
+                    return metadata
+                }.value
+                tearDownInBackground(nil)
+
+                guard self.generation == generation else { return }
+                guard let metadata = existing else {
+                    installedContainer = nil
+                    state = .setup
+                    return
                 }
-                guard LinuxRootImage.isInstalled(at: Self.rootDirectoryURL), let metadata = Self.loadContainerMetadata() else {
-                    Self.moveToTrash(Self.rootDirectoryURL)
-                    return nil
+
+                installedContainer = metadata
+                if metadata.setupCompleted {
+                    await bootInstalledRoot(metadata: metadata, generation: generation)
+                } else {
+                    beginSetupAttempt()
+                    await provision(metadata, generation: generation)
                 }
-                return metadata
-            }.value
-            tearDownInBackground(nil)
-
-            guard self.generation == generation else { return }
-            guard let metadata = existing else {
-                installedContainer = nil
-                activeInitMode = nil
-                state = .setup
-                return
-            }
-
-            installedContainer = metadata
-            if metadata.setupCompleted {
-                await bootInstalledRoot(metadata: metadata, generation: generation)
-            } else {
-                beginSetupAttempt()
-                await provision(metadata, generation: generation)
             }
         }
-    }
 
-    func install(_ request: InstallRequest) {
-        let generation = beginOperation()
-        pendingInstall = request
-        beginSetupAttempt()
-        switch request.source {
-        case .catalog, .remoteArchive:
-            appendConsoleStep("Download", generation: generation)
-        case .localArchive:
-            appendConsoleStep("Copy", generation: generation)
-        }
-        let previousRuntime = detachRuntimeForShutdown()
-
-        activeTask = Task {
-            if let previousRuntime {
-                await shutDownRuntime(previousRuntime)
+        func install(_ request: InstallRequest) {
+            let generation = beginOperation()
+            pendingInstall = request
+            beginSetupAttempt()
+            switch request.source {
+            case .catalog, .remoteArchive:
+                appendConsoleStep("Download", generation: generation)
+            case .localArchive:
+                appendConsoleStep("Copy", generation: generation)
             }
-            guard self.generation == generation else { return }
+            let previousRuntime = detachRuntimeForShutdown()
 
-            let metadata = Self.makeMetadata(for: request)
-            let stagingRootURL = Self.rootDirectoryURL.deletingLastPathComponent()
-                .appending(path: Self.stagingRootPrefix + UUID().uuidString, directoryHint: .isDirectory)
-            var placedRoot = false
-            var temporaryArchiveURL: URL?
-            defer {
-                if let temporaryArchiveURL {
-                    try? FileManager.default.removeItem(at: temporaryArchiveURL)
+            activeTask = Task {
+                if let previousRuntime {
+                    await shutDownRuntime(previousRuntime)
                 }
-                if !placedRoot {
-                    Task.detached(priority: .utility) {
-                        try? FileManager.default.removeItem(at: stagingRootURL)
+                guard self.generation == generation else { return }
+
+                let metadata = Self.makeMetadata(for: request)
+                let stagingRootURL = Self.rootDirectoryURL.deletingLastPathComponent()
+                    .appending(path: Self.stagingRootPrefix + UUID().uuidString, directoryHint: .isDirectory)
+                var placedRoot = false
+                var temporaryArchiveURL: URL?
+                defer {
+                    if let temporaryArchiveURL {
+                        try? FileManager.default.removeItem(at: temporaryArchiveURL)
+                    }
+                    if !placedRoot {
+                        Task.detached(priority: .utility) {
+                            try? FileManager.default.removeItem(at: stagingRootURL)
+                        }
                     }
                 }
-            }
 
-            do {
-                let archiveURL: URL
-                switch request.source {
-                case let .catalog(release):
-                    archiveURL = try await downloadArchive(from: release.archiveURL, generation: generation)
-                    temporaryArchiveURL = archiveURL
+                do {
+                    let archiveURL: URL
+                    switch request.source {
+                    case let .catalog(release):
+                        archiveURL = try await downloadArchive(from: release.archiveURL, generation: generation)
+                        temporaryArchiveURL = archiveURL
 
-                case let .remoteArchive(url):
-                    archiveURL = try await downloadArchive(from: url, generation: generation)
-                    temporaryArchiveURL = archiveURL
+                    case let .remoteArchive(url):
+                        archiveURL = try await downloadArchive(from: url, generation: generation)
+                        temporaryArchiveURL = archiveURL
 
-                case let .localArchive(url):
-                    let staged = try await Task.detached {
-                        try Self.stageLocalArchive(from: url)
-                    }.value
-                    archiveURL = staged
-                    temporaryArchiveURL = staged
-                }
+                    case let .localArchive(url):
+                        let staged = try await Task.detached {
+                            try Self.stageLocalArchive(from: url)
+                        }.value
+                        archiveURL = staged
+                        temporaryArchiveURL = staged
+                    }
 
-                guard self.generation == generation else { return }
-                appendConsoleStep("Extract", generation: generation)
-                let builder = try LinuxRootImageBuilder(root: stagingRootURL)
-                try await unpack(nil, generation: generation) { progress in
-                    try await builder.add(.archive(at: archiveURL), progress: progress)
-                }
-                guard self.generation == generation else { return }
-                try? FileManager.default.removeItem(at: archiveURL)
-                temporaryArchiveURL = nil
-                if case let .catalog(release) = request.source {
-                    try await installKernel(release.distribution, into: builder, generation: generation)
                     guard self.generation == generation else { return }
-                }
-                try await builder.finish()
-                guard self.generation == generation else { return }
+                    appendConsoleStep("Extract", generation: generation)
+                    let builder = try LinuxRootImageBuilder(root: stagingRootURL)
+                    try await unpack(nil, generation: generation) { progress in
+                        try await builder.add(.archive(at: archiveURL), progress: progress)
+                    }
+                    guard self.generation == generation else { return }
+                    try? FileManager.default.removeItem(at: archiveURL)
+                    temporaryArchiveURL = nil
+                    guard Self.hasSystemInit(in: builder) else {
+                        throw StartupError.missingInit
+                    }
+                    if case let .catalog(release) = request.source {
+                        try await installKernel(release.distribution, into: builder, generation: generation)
+                        guard self.generation == generation else { return }
+                    }
+                    try await builder.finish()
+                    guard self.generation == generation else { return }
 
-                try await Task.detached {
-                    try Self.saveContainerMetadata(metadata, root: stagingRootURL)
-                }.value
-                guard self.generation == generation else { return }
-                let fm = FileManager.default
-                if fm.fileExists(atPath: Self.rootDirectoryURL.path(percentEncoded: false)) {
-                    try fm.moveItem(at: Self.rootDirectoryURL, to: Self.trashURL(for: Self.rootDirectoryURL))
+                    try await Task.detached {
+                        try Self.saveContainerMetadata(metadata, root: stagingRootURL)
+                    }.value
+                    guard self.generation == generation else { return }
+                    let fm = FileManager.default
+                    if fm.fileExists(atPath: Self.rootDirectoryURL.path(percentEncoded: false)) {
+                        try fm.moveItem(at: Self.rootDirectoryURL, to: Self.trashURL(for: Self.rootDirectoryURL))
+                    }
+                    try fm.moveItem(at: stagingRootURL, to: Self.rootDirectoryURL)
+                    placedRoot = true
+                    tearDownInBackground(nil)
+                    pendingInstall = nil
+                    await provision(metadata, generation: generation)
+                } catch is CancellationError {
+                    guard self.generation == generation else { return }
+                    pendingInstall = nil
+                    resetConsole()
+                    state = .setup
+                } catch {
+                    guard self.generation == generation else { return }
+                    tearDownInBackground(nil)
+                    endConsoleProgressLine(generation: generation)
+                    appendConsole(Data("\u{1B}[1;31merror:\u{1B}[0m \(error.localizedDescription)\r\n".utf8), generation: generation)
+                    state = .provisioning(Provisioning(attempt: provisioningAttempt, failure: error.localizedDescription))
                 }
-                try fm.moveItem(at: stagingRootURL, to: Self.rootDirectoryURL)
-                placedRoot = true
-                tearDownInBackground(nil)
-                pendingInstall = nil
-                await provision(metadata, generation: generation)
-            } catch is CancellationError {
-                guard self.generation == generation else { return }
-                pendingInstall = nil
-                resetConsole()
-                state = .setup
-            } catch {
-                guard self.generation == generation else { return }
-                tearDownInBackground(nil)
-                endConsoleProgressLine(generation: generation)
-                appendConsole(Data("\u{1B}[1;31merror:\u{1B}[0m \(error.localizedDescription)\r\n".utf8), generation: generation)
-                state = .provisioning(Provisioning(attempt: provisioningAttempt, failure: error.localizedDescription))
             }
         }
-    }
 
     #endif
 
@@ -292,17 +295,6 @@ final class LinuxSystem {
         } else {
             restart()
         }
-    }
-
-    func updateInitMode(_ initMode: ContainerInitMode) {
-        guard var metadata = installedContainer ?? Self.loadContainerMetadata(),
-              metadata.initMode != initMode
-        else {
-            return
-        }
-        metadata.initMode = initMode
-        installedContainer = metadata
-        try? Self.saveContainerMetadata(metadata)
     }
 
     func restart() {
@@ -341,7 +333,6 @@ final class LinuxSystem {
         HostPasteStaging.removeAllFiles()
         tearDownInBackground(previousRuntime)
         installedContainer = nil
-        activeInitMode = nil
         resetConsole()
         state = .setup
     }
@@ -683,7 +674,7 @@ final class LinuxSystem {
 
     private func startRuntime(
         _ metadata: ContainerMetadata,
-        initMode: ContainerInitMode,
+        initMode: LinuxRuntime.Configuration.InitMode,
         writesHostname: Bool,
         generation: UInt64
     ) async throws -> LinuxRuntime {
@@ -694,7 +685,7 @@ final class LinuxSystem {
         let normalizer = ConsoleNewlineNormalizer()
         let configuration = LinuxRuntime.Configuration(
             root: Self.rootDirectoryURL,
-            initMode: initMode.runtimeInitMode,
+            initMode: initMode,
             hostname: metadata.name,
             consoleOutput: { data in
                 let chunk = normalizer.normalize(data)
@@ -728,7 +719,6 @@ final class LinuxSystem {
 
     private func bootInstalledRoot(metadata: ContainerMetadata, generation: UInt64) async {
         consoleChunks.removeAll()
-        activeInitMode = metadata.initMode
         state = .booting
         do {
             try await bootRoot(metadata, generation: generation)
@@ -754,7 +744,7 @@ final class LinuxSystem {
         while true {
             let bootedRuntime = try await startRuntime(
                 metadata,
-                initMode: metadata.initMode,
+                initMode: .system,
                 writesHostname: false,
                 generation: generation
             )
@@ -777,13 +767,7 @@ final class LinuxSystem {
             }
             guard self.generation == generation else { throw CancellationError() }
             if !halted, bootHalt == nil {
-                if metadata.initMode == .managed {
-                    await Self.startManagedServices(bootedRuntime, metadata: metadata)
-                    guard self.generation == generation else { throw CancellationError() }
-                }
-                if bootHalt == nil {
-                    return
-                }
+                return
             }
             guard bootHalt == .reboot, reboots < Self.maxBootReboots else { throw StartupError.halted }
             reboots += 1
@@ -799,14 +783,6 @@ final class LinuxSystem {
             log += "\u{1B}[1;33mwarning:\u{1B}[0m \(fallbackReason.replacingOccurrences(of: "\n", with: "\r\n"))\r\n"
         }
         appendConsole(Data(log.utf8), generation: generation)
-    }
-
-    private nonisolated static func startManagedServices(_ runtime: LinuxRuntime, metadata: ContainerMetadata) async {
-        guard metadata.sshPort != nil else { return }
-        _ = try? await runtime.spawn(LinuxProcess.Configuration(
-            executablePath: "/bin/sh",
-            arguments: ["-c", "install -d -m 0755 /run/sshd && ssh-keygen -A >/dev/null 2>&1 || true; exec \"$(command -v sshd)\""]
-        ))
     }
 
     private nonisolated static func failureMessage(_ error: any Error) -> String {
@@ -848,17 +824,7 @@ final class LinuxSystem {
         do {
             let (runtime, release) = try await bootForProvisioning(metadata, generation: generation)
             if metadata.distributionID == nil {
-                if let detected = release?.distribution {
-                    metadata.distributionID = detected.rawValue
-                } else {
-                    metadata.sshPort = nil
-                }
-            }
-            if metadata.systemInit == nil {
-                metadata.systemInit = await Self.systemInit(in: runtime.fileSystem, distribution: metadata.distribution)
-            }
-            if let requiredInitMode = metadata.systemInit?.requiredInitMode {
-                metadata.initMode = requiredInitMode
+                metadata.distributionID = release?.distribution?.rawValue
             }
 
             let terminal = try runtime.makeTerminal(size: setupTerminalSize)
@@ -921,16 +887,9 @@ final class LinuxSystem {
             guard self.generation == generation else { return }
             installedContainer = completed
 
-            guard completed.initMode == activeInitMode else {
-                await shutDownDetachedRuntime()
-                guard self.generation == generation else { return }
-                await bootInstalledRoot(metadata: completed, generation: generation)
-                return
-            }
-            await Self.startManagedServices(runtime, metadata: completed)
+            await shutDownDetachedRuntime()
             guard self.generation == generation else { return }
-            state = .running
-            completeRunningWaiters()
+            await bootInstalledRoot(metadata: completed, generation: generation)
         } catch {
             guard self.generation == generation else { return }
             await shutDownDetachedRuntime()
@@ -943,7 +902,6 @@ final class LinuxSystem {
     }
 
     private func bootForProvisioning(_ metadata: ContainerMetadata, generation: UInt64) async throws -> (LinuxRuntime, OSRelease?) {
-        activeInitMode = .managed
         let bootedRuntime = try await startRuntime(
             metadata,
             initMode: .managed,
@@ -1131,13 +1089,10 @@ final class LinuxSystem {
         return ContainerMetadata(
             name: request.containerName,
             distributionID: release?.distribution.rawValue,
-            systemInit: release?.distribution.systemInit,
             installedAt: Date(),
-            initMode: request.initMode,
             defaultUser: request.user,
             setupCompleted: false,
-            setup: ContainerSetup(password: request.password, software: request.software),
-            sshPort: request.software.ssh?.port
+            setup: ContainerSetup(password: request.password, software: request.software)
         )
     }
 
@@ -1187,24 +1142,15 @@ final class LinuxSystem {
         return nil
     }
 
-    private nonisolated static func systemInit(in fileSystem: LinuxFileSystem, distribution: LinuxDistribution?) async -> SystemInit {
-        guard let initInode = try? await fileSystem.stat("/sbin/init").inode else { return .absent }
-        for path in ["/usr/lib/systemd/systemd", "/lib/systemd/systemd"] {
-            if (try? await fileSystem.stat(path).inode) == initInode {
-                return .systemd
-            }
-        }
+    private nonisolated static func hasSystemInit(in builder: LinuxRootImageBuilder) -> Bool {
+        guard let initBinary = try? builder.contents(of: "/sbin/init") else { return false }
         for path in ["/bin/busybox", "/usr/bin/busybox"] {
-            if (try? await fileSystem.stat(path).inode) == initInode {
-                for openrc in ["/sbin/openrc", "/usr/bin/openrc"] {
-                    if (try? await fileSystem.stat(openrc)) != nil {
-                        return .other
-                    }
-                }
-                return .absent
+            if (try? builder.contents(of: path)) == initBinary {
+                return (try? builder.contents(of: "/sbin/openrc")) != nil
+                    || (try? builder.contents(of: "/usr/bin/openrc")) != nil
             }
         }
-        return distribution == nil ? .absent : .other
+        return true
     }
 
     private nonisolated static func prepareGuestEnvironment(_ runtime: LinuxRuntime, hostname: String?) async throws {
@@ -1230,14 +1176,5 @@ final class LinuxSystem {
         } catch let error as LinuxError where error == .ENODEV {}
         HostClipboard.shared.attach(to: runtime)
         try await HostCommands.register(on: runtime)
-    }
-}
-
-private nonisolated extension ContainerInitMode {
-    var runtimeInitMode: LinuxRuntime.Configuration.InitMode {
-        switch self {
-        case .managed: .managed
-        case .system: .system
-        }
     }
 }

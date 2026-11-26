@@ -13,7 +13,6 @@ struct SetupDraft {
     var containerName = LinuxDistribution.alpine.defaultContainerName
     var lastAutoContainerName = LinuxDistribution.alpine.defaultContainerName
     var selectedReleaseID: String?
-    var initMode = ContainerInitMode.managed
     var customFileURL: URL?
     var customRemoteURLText = ""
     var usesRootUser = false
@@ -106,9 +105,6 @@ struct SetupView: View {
                 #if DEBUG || SIDELOAD
                     JITRow()
                 #endif
-                if showsStartupModePicker {
-                    StartupModePicker(selection: clearingFocus($draft.initMode))
-                }
                 Button {
                     focusedField = nil
                     showSoftware = true
@@ -261,19 +257,6 @@ struct SetupView: View {
         return catalog.defaultRelease(for: distribution)
     }
 
-    private var selectedSystemInit: SystemInit? {
-        selectedDistribution?.systemInit
-    }
-
-    private var showsStartupModePicker: Bool {
-        selectedSystemInit == .systemd
-    }
-
-    private var effectiveInitMode: ContainerInitMode {
-        guard let selectedSystemInit else { return .managed }
-        return selectedSystemInit.requiredInitMode ?? draft.initMode
-    }
-
     private var remoteArchiveURL: URL? {
         let trimmed = draft.customRemoteURLText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let url = URL(string: trimmed), ["http", "https"].contains(url.scheme?.lowercased()), url.host != nil else {
@@ -381,7 +364,6 @@ struct SetupView: View {
         system.install(LinuxSystem.InstallRequest(
             source: installSource,
             containerName: Self.sanitizedContainerName(draft.containerName),
-            initMode: effectiveInitMode,
             user: draft.usesRootUser ? "root" : draft.username.isEmpty ? Self.fallbackUsername : draft.username,
             password: draft.password.isEmpty ? nil : draft.password,
             software: software
