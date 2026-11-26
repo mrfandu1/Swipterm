@@ -165,14 +165,16 @@ struct SetupSoftwareView: View {
                 }
             }
 
-            Section("Coding Agents") {
-                ForEach(CodingAgent.allCases, id: \.self) { agent in
-                    let isSelected = software.agents.contains(agent)
-                    SetupSelectionRow(title: agent.displayName, isSelected: isSelected) {
-                        software.setAgent(agent, isEnabled: !isSelected)
+            #if DEBUG || SIDELOAD
+                Section("Coding Agents") {
+                    ForEach(CodingAgent.allCases, id: \.self) { agent in
+                        let isSelected = software.agents.contains(agent)
+                        SetupSelectionRow(title: agent.displayName, isSelected: isSelected) {
+                            software.setAgent(agent, isEnabled: !isSelected)
+                        }
                     }
                 }
-            }
+            #endif
         }
         .modifier(FormColumnModifier())
         .navigationTitle("Software")
