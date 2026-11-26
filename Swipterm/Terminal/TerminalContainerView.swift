@@ -31,7 +31,10 @@ struct TerminalContainerView: View {
                     onCloseSession: closeActiveSession,
                     onPreviousSession: { sessionManager.selectAdjacentSession(offset: -1) },
                     onNextSession: { sessionManager.selectAdjacentSession(offset: 1) },
-                    onOpenSettings: { showSettings = true }
+                    onOpenSettings: { showSettings = true },
+                    onFind: { sessionManager.activeSession?.search.present() },
+                    onFindNext: { sessionManager.activeSession?.search.navigate(.older) },
+                    onFindPrevious: { sessionManager.activeSession?.search.navigate(.newer) }
                 )
             }
         }
@@ -87,8 +90,13 @@ struct TerminalContainerView: View {
         session.extras.onPasteConfirmation = { request in
             pendingPaste = request
         }
-        session.extras.onCommandKey = { key in
+        session.extras.onCommandKey = { key, modifiers in
             guard system.state == .running else { return false }
+            if modifiers == [.command, .shift] {
+                guard key == "g" else { return false }
+                session.search.navigate(.newer)
+                return true
+            }
             switch key {
             case "n", "t":
                 sessionManager.addSession()
@@ -99,6 +107,14 @@ struct TerminalContainerView: View {
             case ",":
                 showSettings = true
                 return true
+            case "f":
+                session.search.present()
+                return true
+            case "g":
+                session.search.navigate(.older)
+                return true
+            case "e":
+                return session.state.performBindingAction("search_selection")
             case "1", "2", "3", "4", "5", "6", "7", "8", "9":
                 if let index = Int(key) {
                     sessionManager.selectSession(at: index - 1)
@@ -161,6 +177,10 @@ private struct TerminalSplitViewRepresentable: UIViewControllerRepresentable {
                 onOpenSettings: {
                     coordinator.hideSidebarIfOverlay()
                     coordinator.onOpenSettings()
+                },
+                onManageShortcuts: {
+                    coordinator.hideSidebarIfOverlay()
+                    coordinator.splitState.isShortcutsPresented = true
                 }
             )
             #if SWIPTERM_STORE_SCREENSHOTS && targetEnvironment(simulator)
@@ -300,7 +320,7 @@ private struct TerminalDetailView: View {
                 let isSelected = session.id == sessionManager.activeSessionID
                 TerminalSessionContentView(
                     session: session,
-                    isActive: isSelected && splitState.isTerminalInputActive && session.phase == .running,
+                    isActive: isSelected && splitState.isTerminalInputActive && session.phase == .running && !session.search.isEditing,
                     isVisible: isSelected
                 ) {
                     sessionManager.closeSession(id: session.id)
@@ -311,6 +331,21 @@ private struct TerminalDetailView: View {
                 .onAppear {
                     onSetupCallbacks(session)
                 }
+                .onChange(of: isSelected, initial: true) { _, isSelected in
+                    session.search.setSurfaceActive(isSelected)
+                }
+            }
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if horizontalSizeClass != .regular, let session = sessionManager.activeSession {
+                FindDock(search: session.search, isFloating: false)
+                    .id(session.id)
+            }
+        }
+        .overlay {
+            if horizontalSizeClass == .regular, let session = sessionManager.activeSession {
+                FindDock(search: session.search, isFloating: true)
+                    .id(session.id)
             }
         }
     }
@@ -337,6 +372,13 @@ private struct TerminalDetailView: View {
                                         Image(systemName: shortcut.symbolName)
                                     }
                                 }
+                            }
+                        }
+                        Section {
+                            Button {
+                                sessionManager.activeSession?.search.present()
+                            } label: {
+                                Label("Find", systemImage: "magnifyingglass")
                             }
                             Button {
                                 splitState.isShortcutsPresented = true
@@ -382,6 +424,9 @@ private struct TerminalKeyboardShortcuts: View {
     let onPreviousSession: () -> Void
     let onNextSession: () -> Void
     let onOpenSettings: () -> Void
+    let onFind: () -> Void
+    let onFindNext: () -> Void
+    let onFindPrevious: () -> Void
 
     var body: some View {
         Group {
@@ -397,6 +442,12 @@ private struct TerminalKeyboardShortcuts: View {
                 .keyboardShortcut("]", modifiers: [.command, .shift])
             Button("Settings", action: onOpenSettings)
                 .keyboardShortcut(",", modifiers: .command)
+            Button("Find", action: onFind)
+                .keyboardShortcut("f", modifiers: .command)
+            Button("Find Next", action: onFindNext)
+                .keyboardShortcut("g", modifiers: .command)
+            Button("Find Previous", action: onFindPrevious)
+                .keyboardShortcut("g", modifiers: [.command, .shift])
         }
         .opacity(0)
         .frame(width: 0, height: 0)

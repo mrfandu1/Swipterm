@@ -540,17 +540,17 @@ struct TerminalSurfaceView: View {
             var remaining = presses
             let onCommandKey = (delegate as? TerminalExtras)?.onCommandKey
             for press in presses {
-                guard let key = press.key,
-                      key.modifierFlags.intersection([.command, .control, .alternate, .shift]) == .command
-                else { continue }
+                guard let key = press.key else { continue }
+                let modifiers = key.modifierFlags.intersection([.command, .control, .alternate, .shift])
+                guard modifiers == .command || modifiers == [.command, .shift] else { continue }
                 let character = key.charactersIgnoringModifiers.lowercased()
-                if character == "v" || (key.keyCode == .keyboardV && !character.allSatisfy(\.isASCII)) {
+                if modifiers == .command, character == "v" || (key.keyCode == .keyboardV && !character.allSatisfy(\.isASCII)) {
                     paste(nil)
                     interceptedPresses.insert(press)
                     remaining.remove(press)
                     continue
                 }
-                if onCommandKey?(character) == true {
+                if onCommandKey?(character, modifiers) == true {
                     forgetTypedText()
                     interceptedPresses.insert(press)
                     remaining.remove(press)

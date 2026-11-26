@@ -4,6 +4,7 @@ struct TerminalSidebarView: View {
     let sessionManager: TerminalSessionManager
     let onSelectSession: () -> Void
     let onOpenSettings: () -> Void
+    let onManageShortcuts: () -> Void
 
     var body: some View {
         ScrollView {
@@ -42,9 +43,32 @@ struct TerminalSidebarView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    sessionManager.addSession()
-                    onSelectSession()
+                Menu {
+                    Section {
+                        Button {
+                            sessionManager.addSession()
+                            onSelectSession()
+                        } label: {
+                            Label("New Terminal", systemImage: "plus")
+                        }
+                        ForEach(AppSettings.shared.shortcuts) { shortcut in
+                            Button {
+                                sessionManager.addSession(shortcut: shortcut)
+                                onSelectSession()
+                            } label: {
+                                Label {
+                                    Text(verbatim: shortcut.name)
+                                } icon: {
+                                    Image(systemName: shortcut.symbolName)
+                                }
+                            }
+                        }
+                    }
+                    Section {
+                        Button(action: onManageShortcuts) {
+                            Label("Manage Shortcuts", systemImage: "slider.horizontal.3")
+                        }
+                    }
                 } label: {
                     Label("New Session", systemImage: "plus")
                 }

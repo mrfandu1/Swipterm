@@ -26,6 +26,7 @@ final class TerminalSession: Identifiable {
     let shortcut: TerminalShortcut?
     let state: TerminalViewState
     let extras = TerminalExtras()
+    let search: TerminalSearch
     /// Retain a single UITerminalView per session so Ghostty preserves grid and scrollback across layout detaches.
     let surfaceView: TerminalSurfaceView.SurfaceView
 
@@ -65,6 +66,7 @@ final class TerminalSession: Identifiable {
         )
         state.configuration = TerminalSurfaceOptions(backend: .inMemory(session))
         extras.state = state
+        search = TerminalSearch(terminal: state)
 
         let view = TerminalSurfaceView.SurfaceView(frame: .zero)
         view.controller = state.controller

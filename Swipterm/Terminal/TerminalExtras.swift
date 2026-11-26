@@ -1,6 +1,7 @@
 import Foundation
 import GhosttyTerminal
 import Observation
+import UIKit
 
 @Observable
 final class TerminalExtras: NSObject,
@@ -15,10 +16,11 @@ final class TerminalExtras: NSObject,
     TerminalSurfaceLifecycleDelegate,
     TerminalSurfaceColorChangeDelegate,
     TerminalSurfaceOpenURLDelegate,
-    TerminalSurfaceClipboardConfirmationDelegate
+    TerminalSurfaceClipboardConfirmationDelegate,
+    TerminalSurfaceSearchDelegate
 {
     @ObservationIgnored weak var state: TerminalViewState?
-    @ObservationIgnored var onCommandKey: ((String) -> Bool)?
+    @ObservationIgnored var onCommandKey: ((String, UIKeyModifierFlags) -> Bool)?
     @ObservationIgnored var onOpenURL: ((String, TerminalOpenURLKind) -> Void)?
     @ObservationIgnored var onPasteConfirmation: ((TerminalClipboardConfirmationRequest) -> Void)?
     @ObservationIgnored var onDesktopNotification: ((String, String) -> Void)?
@@ -83,5 +85,21 @@ final class TerminalExtras: NSObject,
             return
         }
         onPasteConfirmation(request)
+    }
+
+    func terminalDidStartSearch(needle: String?) {
+        state?.terminalDidStartSearch(needle: needle)
+    }
+
+    func terminalDidEndSearch() {
+        state?.terminalDidEndSearch()
+    }
+
+    func terminalDidUpdateSearchTotal(_ total: Int?) {
+        state?.terminalDidUpdateSearchTotal(total)
+    }
+
+    func terminalDidUpdateSearchSelected(_ selected: Int?) {
+        state?.terminalDidUpdateSearchSelected(selected)
     }
 }
